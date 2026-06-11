@@ -49,6 +49,46 @@ npm run dev   # opens on http://127.0.0.1:5180
 
 `npm run build` produces a static `dist/` you can serve from anywhere local.
 
+The dev server is pinned to port 5180 (not Vite's 5173 default) because
+MacroVox's Tauri webview loads its own dev UI from `localhost:5173` and will
+render whatever answers on that port.
+
+## Project layout
+
+```
+public/forms/        Blank PDF templates the app fills
+public/vendor/       WASM + OCR assets, vendored by `npm install` (gitignored)
+public/tessdata/     Tesseract English model, downloaded once (gitignored)
+scripts/             setup-assets.mjs: vendors the above
+src/schema.js        Employee/employer field definitions; drives the UI
+src/store.js         localStorage persistence, export/import/wipe
+src/extract/         Scanning: PDF417 AAMVA (license), MRZ (passport), OCR (SSN card)
+src/fill/            One mapping module per form + shared I-9 section
+tests/smoke.mjs      Parser tests + fills every form with sample data
+```
+
+## Testing
+
+```
+node tests/smoke.mjs
+```
+
+Fills both packets and the W-4 with sample data into `tests/out/` (gitignored)
+and exercises the license/passport/SSN-card parsers with synthetic documents.
+Open the generated PDFs to spot-check appearance after mapping changes.
+
+## When PPL or the IRS revises a form
+
+1. Download the new PDF from the PPL program page (link at top) and drop it
+   into `public/forms/`.
+2. Field names decide everything. Dump them with pypdf
+   (`PdfReader(path).get_fields()`) and compare against the mapping module in
+   `src/fill/`. The 2025 to 2026 revision renamed every field except the
+   embedded I-9, so expect anything.
+3. A missing or renamed field is skipped with a console warning rather than
+   crashing, so a partially-matched template still fills what it can.
+4. Run `node tests/smoke.mjs` and review the PDFs in `tests/out/`.
+
 ## Known quirks of the PPL packet PDFs
 
 2026 packet:
