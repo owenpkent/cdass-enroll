@@ -1,125 +1,106 @@
-﻿# CDASS Enroll
+# CDASS Enroll
 
-A local-only app for filling out Colorado CDASS / PPL attendant enrollment
-paperwork. Built for household employers enrolling new attendants through
-Public Partnerships LLC (PPL).
+A local-only web app for filling out Colorado CDASS attendant enrollment
+paperwork. Built for household employers who hire their own attendants
+through Public Partnerships LLC (PPL), the program's fiscal employer agent.
 
-Program reference: [PPL Colorado CDASS](https://pplfirst.com/programs/colorado/colorado-consumer-directed-attendant-support-services-cdass/)
+Enrolling one new attendant means a 28-page PPL packet plus an IRS W-4:
+name, address, SSN, and date of birth copied by hand half a dozen times.
+This app asks for everything once (or reads it straight off the new hire's
+driver's license, passport, or Social Security card), then fills every form
+in one click.
 
-## Privacy model
+**Privacy first.** Everything runs in your browser on this computer. There is
+no server, no account, no analytics, and no network access at runtime. ID
+photos are decoded in memory and never stored. See
+[Privacy model](#privacy-model).
 
-- **No server, no accounts, no analytics.** The app is a static page that runs
-  entirely in your browser on this machine.
-- **Zero network requests at runtime.** OCR models and barcode-reader WASM are
-  vendored locally at install time. A Content-Security-Policy header blocks
-  outbound connections as a second layer.
-- **ID photos are never stored.** Driver's license / passport / Social
-  Security card images are decoded in memory and discarded.
-- Employee profiles are stored in browser localStorage, unencrypted, on this
-  computer only. Use a locked Windows account and consider BitLocker. The
-  Privacy tab has export, import, and wipe-everything buttons.
+## Quick start
+
+```
+npm install   # one time; also vendors offline OCR/barcode assets (~20 MB)
+npm run dev   # open http://127.0.0.1:5180
+```
+
+Then, in the app:
+
+1. **Employer & rates tab**: enter the Member, employer of record, and pay
+   rates. This is entered once and reused for every hire.
+2. **Employees tab**: add the new attendant. Photograph the **back** of their
+   driver's license (the barcode) and let the app fill in their details, or
+   type them in. Review everything.
+3. **Generate forms tab**: pick the employee, set the dates, click Generate.
+   Filled PDFs land in your Downloads folder.
+4. Print, review every page, sign and date by hand, submit to PPL.
+
+The full walkthrough, including scanning tips and what each form needs, is in
+[docs/usage.md](docs/usage.md).
 
 ## What it fills
 
-| Form | Source file | Notes |
+| Form | Template | Notes |
 | --- | --- | --- |
-| PPL CDASS Attendant Packet 2026 CFC & Waiver (enrollment + agreement, direct deposit, services & rates, tax exemptions, EVV attestation of exemption, I-9) | `public/forms/CO-CDASS-Attendant-Packet-2026.pdf` | Current packet, downloaded from the PPL program page |
-| PPL CDASS Attendant Packet 2025 | `public/forms/CO-CDASS-Attendant-Packet-2025.pdf` | Older version, off by default |
-| IRS W-4 (2024 revision, the one PPL links) | `public/forms/w4.pdf` | The filler auto-detects the 2020-2023 vs 2024+ field layouts, so a future-year fillable W-4 dropped over this file keeps working |
+| PPL CDASS Attendant Packet 2026 CFC & Waiver | `public/forms/CO-CDASS-Attendant-Packet-2026.pdf` | The current packet: enrollment + agreement, direct deposit, services & rates, tax exemptions, EVV exemption, I-9 |
+| PPL CDASS Attendant Packet 2025 | `public/forms/CO-CDASS-Attendant-Packet-2025.pdf` | Previous version, off by default |
+| IRS W-4 (2024 revision) | `public/forms/w4.pdf` | Auto-detects the 2020-2023 vs 2024+ field layouts, so a future-year W-4 dropped over this file keeps working |
+
+Signatures are intentionally never auto-filled, and the app deliberately
+leaves a checkbox blank wherever an attestation is ambiguous (details in
+[docs/forms.md](docs/forms.md)).
 
 ## Document scanning
 
 All on-device:
 
-- **Driver's license:** photograph the **back**. The PDF417 barcode carries
-  name, address, DOB, license number, and expiration in machine-readable form
-  (far more reliable than OCR of the front).
-- **Passport:** photo page; the MRZ (the two `<<<` lines) is parsed with
-  check-digit validation.
-- **Social Security card:** OCR for the SSN and name.
+- **Driver's license**: photograph the **back**. The PDF417 barcode carries
+  name, address, DOB, license number, and expiration in machine-readable
+  form, which is far more reliable than OCR of the front.
+- **Passport**: photo page. The MRZ (the two `<<<` lines at the bottom) is
+  parsed with check-digit validation; values that fail their check digit are
+  flagged instead of silently accepted.
+- **Social Security card**: OCR for the SSN and printed name.
 
-Always review extracted values; they highlight in yellow after a scan.
+Extracted values flash yellow in the form so you can review them. Always
+review them.
 
-## Setup
+## Privacy model
+
+- **No server.** The app is a static page; nothing is uploaded anywhere.
+- **Zero network requests at runtime.** OCR models and barcode-reader WASM
+  are vendored to disk by `npm install`. A Content-Security-Policy header
+  blocks outbound connections as a second layer of enforcement.
+- **ID photos are never stored.** They are decoded in memory and discarded.
+- **Profiles stay on this machine**, in browser localStorage, unencrypted.
+  That includes SSNs, so: use a locked Windows account, consider BitLocker,
+  and treat generated PDFs in Downloads like any document with an SSN on it.
+- The **Privacy & data tab** has export (JSON backup), import, and
+  wipe-everything buttons.
+
+## Documentation
+
+| Doc | What's in it |
+| --- | --- |
+| [docs/usage.md](docs/usage.md) | Step-by-step enrollment walkthrough, scanning tips, submitting to PPL |
+| [docs/architecture.md](docs/architecture.md) | How it works: stack, data flow, module map, design decisions |
+| [docs/forms.md](docs/forms.md) | Per-form field mappings, template quirks, and how to handle form revisions |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Scan failures, setup problems, data recovery |
+
+## Development
 
 ```
-npm install   # also vendors WASM/OCR assets and downloads the OCR model (one time)
-npm run dev   # opens on http://127.0.0.1:5180
+npm run dev          # dev server on http://127.0.0.1:5180
+npm run build        # static build to dist/
+node tests/smoke.mjs # parser tests + fills every form with sample data
 ```
 
-`npm run build` produces a static `dist/` you can serve from anywhere local.
-
-The dev server is pinned to port 5180 (not Vite's 5173 default) because
+The smoke test writes filled PDFs to `tests/out/` (gitignored) so mapping
+changes can be spot-checked visually. The dev port is pinned to 5180 because
 MacroVox's Tauri webview loads its own dev UI from `localhost:5173` and will
-render whatever answers on that port.
-
-## Project layout
-
-```
-public/forms/        Blank PDF templates the app fills
-public/vendor/       WASM + OCR assets, vendored by `npm install` (gitignored)
-public/tessdata/     Tesseract English model, downloaded once (gitignored)
-scripts/             setup-assets.mjs: vendors the above
-src/schema.js        Employee/employer field definitions; drives the UI
-src/store.js         localStorage persistence, export/import/wipe
-src/extract/         Scanning: PDF417 AAMVA (license), MRZ (passport), OCR (SSN card)
-src/fill/            One mapping module per form + shared I-9 section
-tests/smoke.mjs      Parser tests + fills every form with sample data
-```
-
-## Testing
-
-```
-node tests/smoke.mjs
-```
-
-Fills both packets and the W-4 with sample data into `tests/out/` (gitignored)
-and exercises the license/passport/SSN-card parsers with synthetic documents.
-Open the generated PDFs to spot-check appearance after mapping changes.
-
-## When PPL or the IRS revises a form
-
-1. Download the new PDF from the PPL program page (link at top) and drop it
-   into `public/forms/`.
-2. Field names decide everything. Dump them with pypdf
-   (`PdfReader(path).get_fields()`) and compare against the mapping module in
-   `src/fill/`. The 2025 to 2026 revision renamed every field except the
-   embedded I-9, so expect anything.
-3. A missing or renamed field is skipped with a console warning rather than
-   crashing, so a partially-matched template still fills what it can.
-4. Run `node tests/smoke.mjs` and review the PDFs in `tests/out/`.
-
-## Known quirks of the PPL packet PDFs
-
-2026 packet:
-
-- The attendant signature-date box on the Direct Deposit page shares a field
-  with the FMS-vendor date on the EVV exemption form, so the app leaves it
-  blank; date it by hand when signing.
-- The EVV Attestation of Exemption pages are only filled when the profile
-  marks the attendant as living with the Member.
-- The under-18 / under-21 tax-exemption checkboxes are only checked when the
-  date of birth actually confirms the age, regardless of the profile toggles.
-
-2025 packet:
-
-- The signature-date box is one shared field across all packet pages, so one
-  signature date fills all of them.
-- I-9 Section 2 "List A Document Title" shares a field with the Supplement B
-  (rehire) page, so a List A title also appears there. Supplement B is only
-  used for rehires; disregard it for new hires.
-- The "mailing address same as home" checkbox is a broken shared field in the
-  original PDF, so the app copies the home address into the mailing section
-  instead of checking the box.
-
-Signatures are intentionally never auto-filled. Print, review, sign.
-
-## Submitting
-
-CO CDASS customer service: 1-888-752-8250, ppcdass@pplfirst.com.
-EVV help desk: 833-204-9041, ppl_cs_evv@pplfirst.com.
+render whatever answers there.
 
 ## Disclaimer
 
 This tool fills forms with data you provide. It is not legal, tax, or
 immigration advice. Review every generated page before signing or submitting.
+
+Program reference: [PPL Colorado CDASS](https://pplfirst.com/programs/colorado/colorado-consumer-directed-attendant-support-services-cdass/)
