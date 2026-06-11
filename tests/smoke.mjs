@@ -107,6 +107,18 @@ const p26li = await fillPacket2026(packet2026Src, liveInProfile, employer, opts)
 writeFileSync(new URL("./out/packet2026-livein-filled.pdf", import.meta.url), p26li);
 expect("2026 live-in packet filled and saved", p26li.length > 100000, String(p26li.length));
 
+// ---- Sensitive-data scrub ----
+{
+  const { scrubSensitive } = await import("../src/schema.js");
+  const p = { ...profile };
+  const cleared = scrubSensitive(p);
+  const stillSensitive = ["ssn", "dob", "routing", "account", "bankName", "dlNumber", "passportNumber"]
+    .filter((k) => p[k]);
+  expect("scrub clears all sensitive fields", stillSensitive.length === 0, stillSensitive.join(","));
+  expect("scrub keeps name and rates", p.first === "Jane" && p.rateStandardCdass === "20.00", JSON.stringify({ first: p.first }));
+  expect("scrub reports cleared keys", cleared.includes("ssn") && cleared.includes("account"), cleared.join(","));
+}
+
 // ---- Retention purge (localStorage stubbed for Node) ----
 {
   const m = new Map();

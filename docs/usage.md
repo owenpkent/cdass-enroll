@@ -101,10 +101,14 @@ Generate forms tab:
 
 ## Afterwards
 
+- Right after generating, the app offers to **clear the attendant's
+  sensitive data** (SSN, date of birth, bank details, ID document numbers)
+  while keeping their name, contact, and rates. Take it once the forms are
+  printed and you won't need to regenerate.
 - Generated PDFs contain the attendant's SSN. Store or shred them the way
   you would any tax document.
-- Employee profiles auto-clear after the retention period (30 days since
-  last edit by default, adjustable in Privacy & data), so there is nothing
-  to clean up in the app itself. Employer settings persist and re-seed.
+- Anything you keep still auto-clears after the retention period (30 days
+  since last edit by default, adjustable in Privacy & data). Employer
+  settings persist and re-seed.
 - The Privacy & data tab can export a JSON backup of all profiles before
   they expire. Keep it somewhere encrypted if you keep it at all.

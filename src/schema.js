@@ -16,8 +16,8 @@ export const PROFILE_SECTIONS = [
     id: "personal",
     title: "Personal details",
     fields: [
-      { key: "dob", label: "Date of birth", type: "date" },
-      { key: "ssn", label: "Social Security Number", type: "ssn" },
+      { key: "dob", label: "Date of birth", type: "date", sensitive: true },
+      { key: "ssn", label: "Social Security Number", type: "ssn", sensitive: true },
       {
         key: "gender",
         label: "Gender",
@@ -102,9 +102,9 @@ export const PROFILE_SECTIONS = [
         type: "select",
         options: [["", ""], ["checking", "Checking"], ["savings", "Savings"]],
       },
-      { key: "bankName", label: "Banking institution name", type: "text" },
-      { key: "routing", label: "Routing number", type: "text" },
-      { key: "account", label: "Account number", type: "text" },
+      { key: "bankName", label: "Banking institution name", type: "text", sensitive: true },
+      { key: "routing", label: "Routing number", type: "text", sensitive: true },
+      { key: "account", label: "Account number", type: "text", sensitive: true },
       { key: "paperPayStub", label: "Mail paper pay stubs (no internet access)", type: "checkbox" },
       {
         key: "directoryOptIn",
@@ -184,21 +184,21 @@ export const PROFILE_SECTIONS = [
           ["alien", "Noncitizen authorized to work"],
         ],
       },
-      { key: "uscisNumber", label: "USCIS / A-Number (if LPR or authorized)", type: "text" },
-      { key: "workAuthExpiration", label: "Work authorization expiration", type: "date" },
-      { key: "i94Number", label: "Form I-94 admission number", type: "text" },
-      { key: "foreignPassport", label: "Foreign passport number and country", type: "text" },
+      { key: "uscisNumber", label: "USCIS / A-Number (if LPR or authorized)", type: "text", sensitive: true },
+      { key: "workAuthExpiration", label: "Work authorization expiration", type: "date", sensitive: true },
+      { key: "i94Number", label: "Form I-94 admission number", type: "text", sensitive: true },
+      { key: "foreignPassport", label: "Foreign passport number and country", type: "text", sensitive: true },
     ],
   },
   {
     id: "iddocs",
     title: "Identity documents (auto-filled from scans)",
     fields: [
-      { key: "dlNumber", label: "Driver's license number", type: "text" },
+      { key: "dlNumber", label: "Driver's license number", type: "text", sensitive: true },
       { key: "dlState", label: "License state", type: "text", width: "s" },
-      { key: "dlExpiration", label: "License expiration", type: "date" },
-      { key: "passportNumber", label: "U.S. passport number", type: "text" },
-      { key: "passportExpiration", label: "Passport expiration", type: "date" },
+      { key: "dlExpiration", label: "License expiration", type: "date", sensitive: true },
+      { key: "passportNumber", label: "U.S. passport number", type: "text", sensitive: true },
+      { key: "passportExpiration", label: "Passport expiration", type: "date", sensitive: true },
     ],
   },
   {
@@ -262,6 +262,22 @@ export function blankEmployer() {
   const e = {};
   for (const s of EMPLOYER_SECTIONS) for (const f of s.fields) e[f.key] = "";
   return e;
+}
+
+/**
+ * Blank out every field marked sensitive (SSN, DOB, bank and ID document
+ * numbers). Name, address, contact, and rates stay so the profile remains
+ * useful as a record. Returns the keys that were cleared.
+ */
+export function scrubSensitive(profile) {
+  const cleared = [];
+  for (const s of PROFILE_SECTIONS)
+    for (const f of s.fields)
+      if (f.sensitive && profile[f.key]) {
+        profile[f.key] = "";
+        cleared.push(f.key);
+      }
+  return cleared;
 }
 
 export function displayName(p) {

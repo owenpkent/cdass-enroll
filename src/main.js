@@ -3,6 +3,7 @@ import {
   EMPLOYER_SECTIONS,
   blankProfile,
   displayName,
+  scrubSensitive,
 } from "./schema.js";
 import * as store from "./store.js";
 import { scanLicense, scanPassport, scanSsnCard } from "./extract/scanner.js";
@@ -402,6 +403,7 @@ function renderGenerate() {
   const wrap = h("div");
   const opts = state.genOptions;
   const status = h("div", { class: "status" });
+  const afterGen = h("div");
 
   if (!opts.profileId && state.profiles.length) opts.profileId = state.profiles[0].id;
 
@@ -450,10 +452,63 @@ function renderGenerate() {
         download(await fillI9Standalone(bytes, profile, state.employer, opts), `${stem}-I9.pdf`);
       }
       setStatus("ok", "Done. Files are in your Downloads folder. Review every page, then sign and date by hand where required.");
+      offerScrub(profile);
     } catch (e) {
       console.error(e);
       setStatus("err", "Failed: " + e.message);
     }
+  }
+
+  // After a successful generation, offer to clear the employee's sensitive
+  // data right away (the retention timer remains as a backstop).
+  function offerScrub(profile) {
+    afterGen.replaceChildren(
+      h(
+        "div",
+        { class: "card", style: "background:#fff8e6; border-color:#e3c66b" },
+        h(
+          "p",
+          { style: "margin-top:0" },
+          `Clear ${displayName(profile)}'s sensitive data from this computer now? `,
+          "This blanks the SSN, date of birth, bank details, and ID document numbers in their profile. ",
+          "Name, contact, and rates are kept. Do this once the printed forms are signed and you won't need to regenerate."
+        ),
+        h(
+          "div",
+          { class: "btnrow" },
+          h(
+            "button",
+            {
+              class: "btn primary",
+              onclick: () => {
+                const cleared = scrubSensitive(profile);
+                saveProfile(profile);
+                afterGen.replaceChildren(
+                  h("p", { class: "status ok" }, `Cleared ${cleared.length} sensitive field${cleared.length === 1 ? "" : "s"}.`)
+                );
+              },
+            },
+            "Clear sensitive data"
+          ),
+          h(
+            "button",
+            {
+              class: "btn",
+              onclick: () => {
+                afterGen.replaceChildren(
+                  h(
+                    "p",
+                    { class: "note" },
+                    "Kept. It will still auto-clear after the retention period (see Privacy & data), or clear it later from this tab by regenerating."
+                  )
+                );
+              },
+            },
+            "Keep for now"
+          )
+        )
+      )
+    );
   }
 
   const setStatus = (cls, msg) => {
@@ -481,6 +536,7 @@ function renderGenerate() {
       h("label", { class: "check" }, newServiceCb, "Rate form: this is a new service (uncheck for an hourly-rate change)"),
       h("div", { class: "btnrow" }, h("button", { class: "btn primary", onclick: generate }, "Generate & download")),
       status,
+      afterGen,
       h(
         "p",
         { class: "note" },
