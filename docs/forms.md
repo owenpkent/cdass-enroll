@@ -1,4 +1,4 @@
-# Form templates and field mappings
+﻿# Form templates and field mappings
 
 Each supported form has a mapping module in `src/fill/` that pairs exact PDF
 field names with profile/employer values. Field names are the contract:
@@ -6,7 +6,7 @@ when PPL or the IRS revises a template, names change and mappings must be
 re-checked. This file records what each mapping covers, the quirks baked
 into the original PDFs, and the revision workflow.
 
-## CO-CDASS-Attendant-Packet-2026 (current) — `src/fill/packet2026.js`
+## CO-CDASS-Attendant-Packet-2026 (current) â€” `src/fill/packet2026.js`
 
 Source: "CO-CDASS-Attendant-Packet-2026-CFC-and-Waiver" from the PPL program
 page. 28 pages, 272 fields, descriptive field names (a full rebuild compared
@@ -36,7 +36,7 @@ Quirks of the original PDF (not bugs in this app):
   student", "...under the age of 21" etc. are only checked when the date of
   birth confirms the age, regardless of the profile toggles.
 
-## CO-CDASS-Attendant-Packet-2025 (legacy) — `src/fill/packet2025.js`
+## CO-CDASS-Attendant-Packet-2025 (legacy) â€” `src/fill/packet2025.js`
 
 17 pages, 211 fields, mostly auto-generated field names ("First_3",
 "undefined_2"). Kept for completeness; off by default in the Generate tab.
@@ -55,7 +55,7 @@ Quirks:
   copies the home address into the mailing section instead of checking it.
 - **Routing/account fields are literally named** `undefined_2`/`undefined_3`.
 
-## IRS W-4 — `src/fill/w4.js`
+## IRS W-4 â€” `src/fill/w4.js`
 
 The bundled template is the 2024 revision (the one PPL links). The IRS kept
 Steps 1-2 field names stable since the 2020 redesign but renumbered the rest
@@ -75,7 +75,7 @@ The filler detects the layout by whether `f1_08` exists, so either era of
 W-4 dropped onto `public/forms/w4.pdf` fills correctly. Filing status is
 three sibling checkboxes (`c1_1[0..2]`), not a radio group.
 
-## I-9 (embedded in both packets) — `src/fill/i9.js`
+## I-9 (embedded in both packets) â€” `src/fill/i9.js`
 
 Both PPL packets embed the same USCIS I-9 build with identical field names,
 so the mapping is shared. Document logic:
