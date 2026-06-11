@@ -1,4 +1,4 @@
-# CDASS Enroll
+﻿# CDASS Enroll
 
 A local-only app for filling out Colorado CDASS / PPL attendant enrollment
 paperwork. Built for household employers enrolling new attendants through
@@ -44,7 +44,7 @@ Always review extracted values; they highlight in yellow after a scan.
 
 ```
 npm install   # also vendors WASM/OCR assets and downloads the OCR model (one time)
-npm run dev   # opens on http://127.0.0.1:5173
+npm run dev   # opens on http://127.0.0.1:5180
 ```
 
 `npm run build` produces a static `dist/` you can serve from anywhere local.
