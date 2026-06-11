@@ -3,10 +3,20 @@
 
 export function setText(form, name, value) {
   if (value == null || value === "") return;
+  const v = String(value);
   try {
-    form.getTextField(name).setText(String(value));
+    form.getTextField(name).setText(v);
+    return;
+  } catch {
+    /* maybe a dropdown (e.g. the standalone I-9 State field) */
+  }
+  try {
+    const dd = form.getDropdown(name);
+    const match = dd.getOptions().find((o) => o.toLowerCase() === v.toLowerCase());
+    if (match) dd.select(match);
+    else console.warn("dropdown has no option:", name, v);
   } catch (e) {
-    console.warn("text field not set:", name, e.message);
+    console.warn("field not set:", name, e.message);
   }
 }
 

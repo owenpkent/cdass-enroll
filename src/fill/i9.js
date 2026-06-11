@@ -2,7 +2,20 @@
 // the 2025 and 2026 PPL packets (both embed the same I-9 build), so both
 // packet fillers share this.
 
+import { PDFDocument } from "pdf-lib";
 import { setText, check, fmtDate } from "./util.js";
+
+/**
+ * Fill the standalone USCIS I-9 (forms/i9.pdf). Same field names as the copy
+ * embedded in the PPL packet, so the section mapping below is shared.
+ */
+export async function fillI9Standalone(templateBytes, p, emp, opts) {
+  const doc = await PDFDocument.load(templateBytes);
+  const form = doc.getForm();
+  fillI9(form, p, emp, opts, fmtDate(opts.signatureDate));
+  form.updateFieldAppearances();
+  return doc.save();
+}
 
 export function fillI9(form, p, emp, opts, sig) {
   // Section 1: employee

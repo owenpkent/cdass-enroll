@@ -42,6 +42,7 @@ The full walkthrough, including scanning tips and what each form needs, is in
 | --- | --- | --- |
 | PPL CDASS Attendant Packet 2026 CFC & Waiver | `public/forms/CO-CDASS-Attendant-Packet-2026.pdf` | The current packet: enrollment + agreement, direct deposit, services & rates, tax exemptions, EVV exemption, I-9 |
 | IRS W-4 (2024 revision) | `public/forms/w4.pdf` | Auto-detects the 2020-2023 vs 2024+ field layouts, so a future-year W-4 dropped over this file keeps working |
+| Standalone USCIS I-9 | `public/forms/i9.pdf` | Off by default; the packet already embeds an I-9, so use this only if PPL asks for one separately |
 
 Signatures are intentionally never auto-filled, and the app deliberately
 leaves a checkbox blank wherever an attestation is ambiguous (details in

@@ -4,6 +4,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fillPacket2026 } from "../src/fill/packet2026.js";
+import { fillI9Standalone } from "../src/fill/i9.js";
 import { fillW4 } from "../src/fill/w4.js";
 import { parseAamva } from "../src/extract/aamva.js";
 import { parseMrz } from "../src/extract/mrz.js";
@@ -95,6 +96,10 @@ const packet2026Src = readFileSync(new URL("../public/forms/CO-CDASS-Attendant-P
 const p26 = await fillPacket2026(packet2026Src, profile, employer, opts);
 writeFileSync(new URL("./out/packet2026-filled.pdf", import.meta.url), p26);
 expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
+
+const i9Bytes = await fillI9Standalone(readFileSync(new URL("../public/forms/i9.pdf", import.meta.url)), profile, employer, opts);
+writeFileSync(new URL("./out/i9-filled.pdf", import.meta.url), i9Bytes);
+expect("standalone I-9 filled and saved", i9Bytes.length > 50000, String(i9Bytes.length));
 
 // Live-in variant exercises the EVV exemption pages.
 const liveInProfile = { ...profile, liveIn: "fullTime", relationToEmployer: "parent", relationship: "parent" };

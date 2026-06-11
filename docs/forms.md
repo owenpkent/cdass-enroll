@@ -64,10 +64,15 @@ The filler detects the layout by whether `f1_08` exists, so either era of
 W-4 dropped onto `public/forms/w4.pdf` fills correctly. Filing status is
 three sibling checkboxes (`c1_1[0..2]`), not a radio group.
 
-## I-9 (embedded in the packet): `src/fill/i9.js`
+## I-9: `src/fill/i9.js`
 
-The I-9 mapping is its own module (the 2025 and 2026 packets embedded the
-same USCIS I-9 build, and a future packet revision likely will too).
+The I-9 mapping is its own module because the same USCIS build appears in
+two places with identical field names: embedded in the PPL packet (pages
+19-22) and as the standalone `public/forms/i9.pdf` that PPL links (off by
+default in the Generate tab, for when PPL requests a separate copy). The
+only difference found so far: the standalone's employee State field is a
+dropdown, which `setText` in `util.js` handles transparently.
+
 Document logic:
 
 - Profile has a **passport number**: List A gets "U.S. Passport" with number

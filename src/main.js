@@ -7,6 +7,7 @@ import {
 import * as store from "./store.js";
 import { scanLicense, scanPassport, scanSsnCard } from "./extract/scanner.js";
 import { fillPacket2026 } from "./fill/packet2026.js";
+import { fillI9Standalone } from "./fill/i9.js";
 import { fillW4 } from "./fill/w4.js";
 import { todayIso } from "./fill/util.js";
 
@@ -413,13 +414,16 @@ function renderGenerate() {
   packetCb.checked = true;
   const w4Cb = h("input", { type: "checkbox" });
   w4Cb.checked = true;
+  const i9Cb = h("input", { type: "checkbox" });
+  i9Cb.checked = false;
   const newServiceCb = h("input", { type: "checkbox", onchange: (e) => (opts.newService = e.target.checked) });
   newServiceCb.checked = opts.newService;
 
   async function generate() {
     const profile = state.profiles.find((p) => p.id === opts.profileId);
     if (!profile) return setStatus("err", "Pick an employee first.");
-    if (!packetCb.checked && !w4Cb.checked) return setStatus("err", "Select at least one form.");
+    if (!packetCb.checked && !w4Cb.checked && !i9Cb.checked)
+      return setStatus("err", "Select at least one form.");
     setStatus("busy", "Filling forms locally...");
     try {
       const stem = `${profile.last || "employee"}-${profile.first || ""}`.replace(/[^\w-]+/g, "");
@@ -430,6 +434,10 @@ function renderGenerate() {
       if (w4Cb.checked) {
         const bytes = await fetchTemplate("forms/w4.pdf");
         download(await fillW4(bytes, profile, state.employer, opts), `${stem}-W4.pdf`);
+      }
+      if (i9Cb.checked) {
+        const bytes = await fetchTemplate("forms/i9.pdf");
+        download(await fillI9Standalone(bytes, profile, state.employer, opts), `${stem}-I9.pdf`);
       }
       setStatus("ok", "Done. Files are in your Downloads folder. Review every page, then sign and date by hand where required.");
     } catch (e) {
@@ -459,6 +467,7 @@ function renderGenerate() {
       h("h3", {}, "Forms to generate"),
       h("label", { class: "check" }, packetCb, "PPL CDASS Attendant Packet 2026 (enrollment, agreement, direct deposit, rates, tax exemptions, EVV exemption, I-9)"),
       h("label", { class: "check" }, w4Cb, "IRS W-4 withholding (2024 revision, as distributed by PPL)"),
+      h("label", { class: "check" }, i9Cb, "Standalone USCIS I-9 (the packet already includes one; only if PPL asks for it separately)"),
       h("label", { class: "check" }, newServiceCb, "Rate form: this is a new service (uncheck for an hourly-rate change)"),
       h("div", { class: "btnrow" }, h("button", { class: "btn primary", onclick: generate }, "Generate & download")),
       status,
