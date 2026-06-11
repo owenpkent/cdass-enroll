@@ -43,7 +43,7 @@ export function fillI9(form, p, emp, opts, sig) {
     setText(form, "Expiration Date if any", fmtDate(p.passportExpiration));
   } else if (p.dlNumber) {
     setText(form, "List B Document 1 Title", "Driver's License");
-    setText(form, "List B Issuing Authority 1", p.dlState || p.state);
+    setText(form, "List B Issuing Authority 1", dmvName(p.dlState || p.state));
     setText(form, "List B Document Number 1", p.dlNumber);
     setText(form, "List B Expiration Date 1", fmtDate(p.dlExpiration));
     if (p.ssn) {
@@ -65,6 +65,27 @@ export function fillI9(form, p, emp, opts, sig) {
     emp.businessName || [emp.employerFirst, emp.employerLast].filter(Boolean).join(" ")
   );
   setText(form, "Employers Business or Org Address", emp.businessAddress);
+}
+
+// "CO" -> "Colorado DMV", matching how the issuing authority is written by hand.
+const STATE_NAMES = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+  CO: "Colorado", CT: "Connecticut", DE: "Delaware", DC: "District of Columbia",
+  FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois",
+  IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+  ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan",
+  MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana",
+  NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey",
+  NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota",
+  OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
+  RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota",
+  TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia",
+  WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
+};
+
+function dmvName(state) {
+  const full = STATE_NAMES[(state ?? "").trim().toUpperCase()];
+  return full ? `${full} DMV` : state;
 }
 
 function fmtSsnDashes(ssn) {

@@ -6,5 +6,6 @@ public/tessdata/
 # Never commit filled forms or employee data
 output/
 *.local
+public/seed.local.json
 tests/out/
 _incoming/

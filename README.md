@@ -75,6 +75,10 @@ review them.
   and treat generated PDFs in Downloads like any document with an SSN on it.
 - The **Privacy & data tab** has export (JSON backup), import, and
   wipe-everything buttons.
+- **Optional seed file.** If a gitignored `public/seed.local.json` exists
+  (shape: `{"employer": { ...employer settings... }}`), the app loads it into
+  the Employer & rates tab the first time it runs in a browser profile. It
+  never overwrites existing settings and must never be committed.
 
 ## Documentation
 

@@ -24,6 +24,9 @@ CSP in index.html enforces this and should stay.
   revision workflow; update it when mappings change
 - Blank templates: `public/forms/`. Never commit filled forms or anything
   with real employee data (tests use the fictional Jane Doe)
+- `public/seed.local.json` holds Owen's real member/employer details and is
+  gitignored; it auto-fills empty employer settings at startup. Never commit
+  it or copy its contents into tracked files
 
 ## Conventions
 

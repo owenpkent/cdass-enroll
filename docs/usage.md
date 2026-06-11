@@ -18,6 +18,11 @@ This information is the same for every attendant you hire, so enter it once:
 
 Everything saves as you type.
 
+If `public/seed.local.json` exists (it does on the original machine), this
+tab arrives pre-filled with the standing member/employer details the first
+time the app runs in a browser profile; only the current pay rates need
+checking.
+
 ## Step 1: Add the employee
 
 Employees tab, "+ Add employee". You land in the editor.

@@ -19,6 +19,14 @@ const state = {
   genOptions: { signatureDate: todayIso(), firstDay: "", rateEffectiveDate: "", newService: true },
 };
 
+// Pre-fill employer settings from seed.local.json on a fresh browser profile.
+store.applySeedIfEmpty().then((applied) => {
+  if (applied) {
+    state.employer = store.loadEmployer();
+    render();
+  }
+});
+
 const app = document.getElementById("app");
 
 // ---------- tiny DOM helper ----------

@@ -57,9 +57,10 @@ export async function fillW4(templateBytes, p, emp, opts) {
   text(n(10), money(p.deductions)); // 4(b)
   text(n(11), money(p.extraWithholding)); // 4(c)
 
-  // Employer block
+  // Employer block. A household employer writes their personal name here
+  // (the "Household Employer" business label belongs on the I-9, not the W-4).
   const employerName =
-    emp.businessName || [emp.employerFirst, emp.employerLast].filter(Boolean).join(" ");
+    [emp.employerFirst, emp.employerLast].filter(Boolean).join(" ") || emp.businessName;
   text(n(12), [employerName, emp.businessAddress].filter(Boolean).join(", "));
   text(n(13), fmtDate(opts.firstDay));
   text(n(14), emp.ein);
