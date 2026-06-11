@@ -1,0 +1,9 @@
+node_modules/
+dist/
+# Vendored at install time by scripts/setup-assets.mjs
+public/vendor/
+public/tessdata/
+# Never commit filled forms or employee data
+output/
+*.local
+tests/out/
