@@ -99,5 +99,8 @@ Generate forms tab:
 
 - Generated PDFs contain the attendant's SSN. Store or shred them the way
   you would any tax document.
-- The Privacy & data tab can export a JSON backup of all profiles. Keep it
-  somewhere encrypted if you keep it at all.
+- Employee profiles auto-clear after the retention period (30 days since
+  last edit by default, adjustable in Privacy & data), so there is nothing
+  to clean up in the app itself. Employer settings persist and re-seed.
+- The Privacy & data tab can export a JSON backup of all profiles before
+  they expire. Keep it somewhere encrypted if you keep it at all.

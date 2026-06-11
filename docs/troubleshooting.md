@@ -79,7 +79,12 @@ newest download, not an earlier one with the same name plus ` (1)`.
 
 **Profiles disappeared**
 
-Profiles live in browser localStorage, scoped to browser + origin
+First check: the app auto-clears employee profiles untouched for longer than
+the retention period (30 days by default; setting in the Privacy & data
+tab). A note on the Employees tab says when this happened. This is by
+design, so SSNs don't sit on disk indefinitely.
+
+Otherwise: profiles live in browser localStorage, scoped to browser + origin
 (`127.0.0.1:5180`). Causes: a different browser or profile, "clear browsing
 data" including site data, or a changed dev port (different origin = empty
 storage). Recover by importing the JSON backup from the Privacy & data tab;

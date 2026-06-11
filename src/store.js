@@ -4,6 +4,44 @@ import { blankEmployer } from "./schema.js";
 
 const PROFILES_KEY = "cdass.profiles.v1";
 const EMPLOYER_KEY = "cdass.employer.v1";
+const RETENTION_KEY = "cdass.retentionDays.v1";
+
+export const RETENTION_CHOICES = [
+  ["7", "7 days"],
+  ["30", "30 days (default)"],
+  ["90", "90 days"],
+  ["never", "Keep until wiped manually"],
+];
+
+export function getRetentionDays() {
+  const v = localStorage.getItem(RETENTION_KEY) ?? "30";
+  return v === "never" ? null : Number(v);
+}
+
+export function setRetention(value) {
+  localStorage.setItem(RETENTION_KEY, value);
+}
+
+export function getRetentionSetting() {
+  return localStorage.getItem(RETENTION_KEY) ?? "30";
+}
+
+/**
+ * Delete employee profiles untouched for longer than the retention period.
+ * Employer settings are kept; they re-seed from seed.local.json anyway.
+ * Returns the number of profiles removed.
+ */
+export function purgeStaleProfiles(now = Date.now()) {
+  const days = getRetentionDays();
+  if (days == null) return 0;
+  const cutoff = now - days * 24 * 60 * 60 * 1000;
+  const profiles = loadProfiles();
+  // Profiles saved before timestamps existed get stamped now (one grace period).
+  for (const p of profiles) p.touchedAt ??= now;
+  const kept = profiles.filter((p) => p.touchedAt >= cutoff);
+  saveProfiles(kept);
+  return profiles.length - kept.length;
+}
 
 export function loadProfiles() {
   try {

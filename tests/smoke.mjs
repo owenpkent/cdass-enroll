@@ -107,5 +107,31 @@ const p26li = await fillPacket2026(packet2026Src, liveInProfile, employer, opts)
 writeFileSync(new URL("./out/packet2026-livein-filled.pdf", import.meta.url), p26li);
 expect("2026 live-in packet filled and saved", p26li.length > 100000, String(p26li.length));
 
+// ---- Retention purge (localStorage stubbed for Node) ----
+{
+  const m = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+  const store = await import("../src/store.js");
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  store.saveProfiles([
+    { id: "fresh", first: "A", touchedAt: now - 1 * day },
+    { id: "stale", first: "B", touchedAt: now - 40 * day },
+    { id: "unstamped", first: "C" },
+  ]);
+  const purged = store.purgeStaleProfiles(now);
+  const left = store.loadProfiles().map((p) => p.id).sort();
+  expect("retention purges stale profile", purged === 1, String(purged));
+  expect(
+    "retention keeps fresh + stamps legacy",
+    left.join(",") === "fresh,unstamped",
+    left.join(",")
+  );
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nAll smoke tests passed.");
 process.exit(failures ? 1 : 0);

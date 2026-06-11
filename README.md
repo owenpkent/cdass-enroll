@@ -73,9 +73,11 @@ review them.
   are vendored to disk by `npm install`. A Content-Security-Policy header
   blocks outbound connections as a second layer of enforcement.
 - **ID photos are never stored.** They are decoded in memory and discarded.
-- **Profiles stay on this machine**, in browser localStorage, unencrypted.
-  That includes SSNs, so: use a locked Windows account, consider BitLocker,
-  and treat generated PDFs in Downloads like any document with an SSN on it.
+- **Profiles stay on this machine**, in browser localStorage, unencrypted,
+  and **auto-clear after a retention period** (30 days since last edit by
+  default; configurable in the Privacy & data tab). Employer settings survive
+  and re-seed automatically. Treat generated PDFs in Downloads like any
+  document with an SSN on it.
 - The **Privacy & data tab** has export (JSON backup), import, and
   wipe-everything buttons.
 - **Optional seed file.** If a gitignored `public/seed.local.json` exists

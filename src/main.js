@@ -19,6 +19,13 @@ const state = {
   genOptions: { signatureDate: todayIso(), firstDay: "", rateEffectiveDate: "", newService: true },
 };
 
+// Retention: clear employee profiles untouched for longer than the setting.
+const purged = store.purgeStaleProfiles();
+if (purged) {
+  state.profiles = store.loadProfiles();
+  state.purgedNote = `${purged} employee profile${purged === 1 ? "" : "s"} auto-cleared (older than the retention period set in Privacy & data).`;
+}
+
 // Pre-fill employer settings from seed.local.json on a fresh browser profile.
 store.applySeedIfEmpty().then((applied) => {
   if (applied) {
@@ -123,6 +130,7 @@ function refreshInputs(container, obj, changedKeys) {
 
 // ---------- persistence ----------
 function saveProfile(profile) {
+  profile.touchedAt = Date.now();
   const i = state.profiles.findIndex((p) => p.id === profile.id);
   if (i >= 0) state.profiles[i] = profile;
   else state.profiles.push(profile);
@@ -177,6 +185,8 @@ function renderEmployees() {
     if (profile) return renderEditor(profile);
     state.editingId = null;
   }
+
+  if (state.purgedNote) wrap.append(h("p", { class: "note" }, state.purgedNote));
 
   const list = h("ul", { class: "people" });
   if (state.profiles.length === 0) {
@@ -517,6 +527,25 @@ function renderPrivacy() {
     },
   });
 
+  const retentionSel = h(
+    "select",
+    {
+      onchange: (e) => {
+        store.setRetention(e.target.value);
+        const purged = store.purgeStaleProfiles();
+        if (purged) {
+          state.profiles = store.loadProfiles();
+          alert(`${purged} profile(s) older than the new retention period were cleared.`);
+        }
+      },
+    },
+    ...store.RETENTION_CHOICES.map(([v, label]) => {
+      const o = h("option", { value: v }, label);
+      o.selected = store.getRetentionSetting() === v;
+      return o;
+    })
+  );
+
   return h(
     "div",
     { class: "card privacy" },
@@ -529,7 +558,13 @@ function renderPrivacy() {
     h(
       "p",
       {},
-      "Employee profiles (including SSNs) are stored in this browser's local storage on this machine, unencrypted. Anyone who can log into this Windows account can read them, so use a locked account and consider BitLocker disk encryption. Generated PDFs go to your Downloads folder; store and dispose of them like any document containing an SSN."
+      "Employee profiles (including SSNs) are stored in this browser's local storage on this machine, unencrypted. To limit how long they sit there, profiles are automatically cleared after the retention period below (employer settings are kept and re-seed automatically). Generated PDFs go to your Downloads folder; store and dispose of them like any document containing an SSN."
+    ),
+    h(
+      "label",
+      { class: "field", style: "max-width: 320px" },
+      "Auto-clear employee profiles after",
+      retentionSel
     ),
     h("hr", { class: "soft" }),
     h(
