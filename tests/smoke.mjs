@@ -4,6 +4,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fillPacket } from "../src/fill/packet2025.js";
+import { fillPacket2026 } from "../src/fill/packet2026.js";
 import { fillW4 } from "../src/fill/w4.js";
 import { parseAamva } from "../src/extract/aamva.js";
 import { parseMrz } from "../src/extract/mrz.js";
@@ -62,6 +63,7 @@ const profile = {
   street: "1234 Main St", street2: "Apt 2", city: "Denver", state: "CO", zip: "80203",
   county: "Denver", municipality: "Denver", mailingSame: true,
   email: "jane@example.com", cellPhone: "303-555-0100", otherPhone: "", allowText: "yes",
+  contactPreference: "email", primaryLanguage: "English", bestContactTimes: "Weekday mornings",
   directDeposit: true, sameAccountAllMembers: false, accountType: "checking",
   bankName: "First Bank", routing: "102000021", account: "9876543210",
   paperPayStub: false, directoryOptIn: "no",
@@ -75,7 +77,7 @@ const profile = {
   otherIncome: "", deductions: "", extraWithholding: "50",
 };
 const employer = {
-  memberFirst: "Owen", memberLast: "Kent", memberPplId: "MEM-001",
+  memberFirst: "Owen", memberLast: "Kent", memberPplId: "MEM-001", memberMedicaidId: "A123456",
   employerFirst: "Owen", employerLast: "Kent", employerTitle: "Employer",
   businessName: "Owen Kent, Household Employer", businessAddress: "1234 Main St, Denver, CO 80203",
   ein: "12-3456789",
@@ -93,6 +95,17 @@ expect("packet filled and saved", packetBytes.length > 100000, String(packetByte
 const w4Bytes = await fillW4(readFileSync(new URL("../public/forms/w4.pdf", import.meta.url)), profile, employer, opts);
 writeFileSync(new URL("./out/w4-filled.pdf", import.meta.url), w4Bytes);
 expect("w4 filled and saved", w4Bytes.length > 50000, String(w4Bytes.length));
+
+const packet2026Src = readFileSync(new URL("../public/forms/CO-CDASS-Attendant-Packet-2026.pdf", import.meta.url));
+const p26 = await fillPacket2026(packet2026Src, profile, employer, opts);
+writeFileSync(new URL("./out/packet2026-filled.pdf", import.meta.url), p26);
+expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
+
+// Live-in variant exercises the EVV exemption pages.
+const liveInProfile = { ...profile, liveIn: "fullTime", relationToEmployer: "parent", relationship: "parent" };
+const p26li = await fillPacket2026(packet2026Src, liveInProfile, employer, opts);
+writeFileSync(new URL("./out/packet2026-livein-filled.pdf", import.meta.url), p26li);
+expect("2026 live-in packet filled and saved", p26li.length > 100000, String(p26li.length));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nAll smoke tests passed.");
 process.exit(failures ? 1 : 0);

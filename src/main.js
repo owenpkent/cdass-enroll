@@ -7,6 +7,7 @@ import {
 import * as store from "./store.js";
 import { scanLicense, scanPassport, scanSsnCard } from "./extract/scanner.js";
 import { fillPacket } from "./fill/packet2025.js";
+import { fillPacket2026 } from "./fill/packet2026.js";
 import { fillW4 } from "./fill/w4.js";
 import { todayIso } from "./fill/util.js";
 
@@ -403,6 +404,8 @@ function renderGenerate() {
 
   const packetCb = h("input", { type: "checkbox" });
   packetCb.checked = true;
+  const packet2025Cb = h("input", { type: "checkbox" });
+  packet2025Cb.checked = false;
   const w4Cb = h("input", { type: "checkbox" });
   w4Cb.checked = true;
   const newServiceCb = h("input", { type: "checkbox", onchange: (e) => (opts.newService = e.target.checked) });
@@ -411,13 +414,18 @@ function renderGenerate() {
   async function generate() {
     const profile = state.profiles.find((p) => p.id === opts.profileId);
     if (!profile) return setStatus("err", "Pick an employee first.");
-    if (!packetCb.checked && !w4Cb.checked) return setStatus("err", "Select at least one form.");
+    if (!packetCb.checked && !packet2025Cb.checked && !w4Cb.checked)
+      return setStatus("err", "Select at least one form.");
     setStatus("busy", "Filling forms locally...");
     try {
       const stem = `${profile.last || "employee"}-${profile.first || ""}`.replace(/[^\w-]+/g, "");
       if (packetCb.checked) {
+        const bytes = await fetchTemplate("forms/CO-CDASS-Attendant-Packet-2026.pdf");
+        download(await fillPacket2026(bytes, profile, state.employer, opts), `${stem}-CDASS-packet-2026.pdf`);
+      }
+      if (packet2025Cb.checked) {
         const bytes = await fetchTemplate("forms/CO-CDASS-Attendant-Packet-2025.pdf");
-        download(await fillPacket(bytes, profile, state.employer, opts), `${stem}-CDASS-packet.pdf`);
+        download(await fillPacket(bytes, profile, state.employer, opts), `${stem}-CDASS-packet-2025.pdf`);
       }
       if (w4Cb.checked) {
         const bytes = await fetchTemplate("forms/w4.pdf");
@@ -449,8 +457,9 @@ function renderGenerate() {
         dateField("Rate effective date", "rateEffectiveDate")
       ),
       h("h3", {}, "Forms to generate"),
-      h("label", { class: "check" }, packetCb, "PPL CDASS Attendant Packet 2025 (enrollment, agreement, rates, FLSA, EVV, difficulty of care, I-9)"),
-      h("label", { class: "check" }, w4Cb, "IRS W-4 withholding"),
+      h("label", { class: "check" }, packetCb, "PPL CDASS Attendant Packet 2026 (current: enrollment, agreement, direct deposit, rates, tax exemptions, EVV exemption, I-9)"),
+      h("label", { class: "check" }, w4Cb, "IRS W-4 withholding (2024 revision, as distributed by PPL)"),
+      h("label", { class: "check" }, packet2025Cb, "PPL CDASS Attendant Packet 2025 (older version, only if requested)"),
       h("label", { class: "check" }, newServiceCb, "Rate form: this is a new service (uncheck for an hourly-rate change)"),
       h("div", { class: "btnrow" }, h("button", { class: "btn primary", onclick: generate }, "Generate & download")),
       status,

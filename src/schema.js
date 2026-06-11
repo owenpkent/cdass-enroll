@@ -70,6 +70,20 @@ export const PROFILE_SECTIONS = [
         type: "select",
         options: [["", ""], ["yes", "Yes"], ["no", "No"]],
       },
+      {
+        key: "contactPreference",
+        label: "Preferred contact method",
+        type: "select",
+        options: [
+          ["", ""],
+          ["email", "Email"],
+          ["cell", "Cell phone"],
+          ["home", "Home phone"],
+          ["mail", "Mail"],
+        ],
+      },
+      { key: "primaryLanguage", label: "Primary language", type: "text", placeholder: "English" },
+      { key: "bestContactTimes", label: "Best times to contact", type: "text" },
     ],
   },
   {
@@ -112,7 +126,8 @@ export const PROFILE_SECTIONS = [
         options: [
           ["", ""],
           ["spouse", "Spouse"],
-          ["relative", "Relative"],
+          ["parent", "Parent"],
+          ["relative", "Other relative"],
           ["nonrelative", "Non-relative"],
         ],
       },
@@ -209,6 +224,7 @@ export const EMPLOYER_SECTIONS = [
       { key: "memberFirst", label: "Member first name", type: "text" },
       { key: "memberLast", label: "Member last name", type: "text" },
       { key: "memberPplId", label: "Member PPL ID", type: "text" },
+      { key: "memberMedicaidId", label: "Member Medicaid ID (EVV exemption form)", type: "text" },
     ],
   },
   {

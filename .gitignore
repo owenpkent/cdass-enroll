@@ -7,3 +7,4 @@ public/tessdata/
 output/
 *.local
 tests/out/
+_incoming/

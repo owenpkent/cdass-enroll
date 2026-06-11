@@ -1,6 +1,9 @@
-// Field mapping for the IRS W-4 (forms/w4.pdf). The IRS has kept these
-// internal names (f1_01, c1_1, ...) stable since the 2020 redesign, so a
-// newer-year W-4 dropped into public/forms/w4.pdf should still fill.
+// Field mapping for the IRS W-4 (forms/w4.pdf). Steps 1-2 names are stable
+// since the 2020 redesign, but the 2024 revision renumbered the rest: Step 3
+// total moved from f1_09 to f1_08, Steps 4(a-c) shifted up one, and the
+// employer block became f1_12-f1_14 (no more f1_15). We detect the layout by
+// whether f1_08 exists (2024+) and map accordingly, so a future-year W-4
+// dropped into public/forms/w4.pdf keeps working either way.
 
 import { PDFDocument } from "pdf-lib";
 import { bySuffix, fmtDate, fmtSsn } from "./util.js";
@@ -44,18 +47,22 @@ export async function fillW4(templateBytes, p, emp, opts) {
 
   text(".f1_06[0]", money(p.childrenCredit));
   text(".f1_07[0]", money(p.otherDependentsCredit));
+
+  const is2024Layout = !!bySuffix(form, ".f1_08[0]");
+  const n = (base) => `.f1_${String(base + (is2024Layout ? 0 : 1)).padStart(2, "0")}[0]`;
+
   const total = Number(p.childrenCredit || 0) + Number(p.otherDependentsCredit || 0);
-  if (total > 0) text(".f1_09[0]", String(total));
-  text(".f1_10[0]", money(p.otherIncome));
-  text(".f1_11[0]", money(p.deductions));
-  text(".f1_12[0]", money(p.extraWithholding));
+  if (total > 0) text(n(8), String(total)); // Step 3 total
+  text(n(9), money(p.otherIncome)); // 4(a)
+  text(n(10), money(p.deductions)); // 4(b)
+  text(n(11), money(p.extraWithholding)); // 4(c)
 
   // Employer block
   const employerName =
     emp.businessName || [emp.employerFirst, emp.employerLast].filter(Boolean).join(" ");
-  text(".f1_13[0]", [employerName, emp.businessAddress].filter(Boolean).join(", "));
-  text(".f1_14[0]", fmtDate(opts.firstDay));
-  text(".f1_15[0]", emp.ein);
+  text(n(12), [employerName, emp.businessAddress].filter(Boolean).join(", "));
+  text(n(13), fmtDate(opts.firstDay));
+  text(n(14), emp.ein);
 
   form.updateFieldAppearances();
   return doc.save();

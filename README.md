@@ -21,14 +21,11 @@ Program reference: [PPL Colorado CDASS](https://pplfirst.com/programs/colorado/c
 
 ## What it fills
 
-| Form | Source file | Method |
+| Form | Source file | Notes |
 | --- | --- | --- |
-| PPL CDASS Attendant Packet 2025 (enrollment, employment agreement, rate form, FLSA live-in exemption, EVV attestation, difficulty-of-care, I-9) | `public/forms/CO-CDASS-Attendant-Packet-2025.pdf` | Native PDF form fields |
-| IRS W-4 | `public/forms/w4.pdf` | Native PDF form fields |
-
-The bundled W-4 is the 2022 revision (the one PPL distributed). The IRS keeps
-internal field names stable, so you can drop a current-year fillable W-4 over
-`public/forms/w4.pdf` and it should still fill. Verify the output.
+| PPL CDASS Attendant Packet 2026 CFC & Waiver (enrollment + agreement, direct deposit, services & rates, tax exemptions, EVV attestation of exemption, I-9) | `public/forms/CO-CDASS-Attendant-Packet-2026.pdf` | Current packet, downloaded from the PPL program page |
+| PPL CDASS Attendant Packet 2025 | `public/forms/CO-CDASS-Attendant-Packet-2025.pdf` | Older version, off by default |
+| IRS W-4 (2024 revision, the one PPL links) | `public/forms/w4.pdf` | The filler auto-detects the 2020-2023 vs 2024+ field layouts, so a future-year fillable W-4 dropped over this file keeps working |
 
 ## Document scanning
 
@@ -52,7 +49,19 @@ npm run dev   # opens on http://127.0.0.1:5173
 
 `npm run build` produces a static `dist/` you can serve from anywhere local.
 
-## Known quirks of the PPL packet PDF
+## Known quirks of the PPL packet PDFs
+
+2026 packet:
+
+- The attendant signature-date box on the Direct Deposit page shares a field
+  with the FMS-vendor date on the EVV exemption form, so the app leaves it
+  blank; date it by hand when signing.
+- The EVV Attestation of Exemption pages are only filled when the profile
+  marks the attendant as living with the Member.
+- The under-18 / under-21 tax-exemption checkboxes are only checked when the
+  date of birth actually confirms the age, regardless of the profile toggles.
+
+2025 packet:
 
 - The signature-date box is one shared field across all packet pages, so one
   signature date fills all of them.
@@ -62,7 +71,13 @@ npm run dev   # opens on http://127.0.0.1:5173
 - The "mailing address same as home" checkbox is a broken shared field in the
   original PDF, so the app copies the home address into the mailing section
   instead of checking the box.
-- Signatures are intentionally never auto-filled. Print, review, sign.
+
+Signatures are intentionally never auto-filled. Print, review, sign.
+
+## Submitting
+
+CO CDASS customer service: 1-888-752-8250, ppcdass@pplfirst.com.
+EVV help desk: 833-204-9041, ppl_cs_evv@pplfirst.com.
 
 ## Disclaimer
 
