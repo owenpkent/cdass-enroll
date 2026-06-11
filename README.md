@@ -27,11 +27,12 @@ http://127.0.0.1:5180. Plain npm works too (`npm install`, `npm run dev`).
 
 Then, in the app:
 
-1. **Employer & rates tab**: enter the Member, employer of record, and pay
-   rates. This is entered once and reused for every hire.
+1. **Employer & Member tab**: enter the Member and employer of record once;
+   they are reused for every hire.
 2. **Employees tab**: add the new attendant. Photograph the **back** of their
    driver's license (the barcode) and let the app fill in their details, or
-   type them in. Review everything.
+   type them in. Set their hourly rates (rates are per attendant). Review
+   everything.
 3. **Generate forms tab**: pick the employee, set the dates, click Generate.
    Filled PDFs land in your Downloads folder.
 4. Print, review every page, sign and date by hand, submit to PPL.

@@ -140,7 +140,7 @@ function saveProfile(profile) {
 // ---------- tabs ----------
 const TABS = [
   ["employees", "Employees"],
-  ["employer", "Employer & rates"],
+  ["employer", "Employer & Member"],
   ["generate", "Generate forms"],
   ["privacy", "Privacy & data"],
 ];
@@ -390,7 +390,7 @@ function renderEmployerTab() {
     h(
       "p",
       { class: "note" },
-      "Entered once, used on every packet: the Member receiving care, the employer of record, and default pay rates."
+      "Entered once, used on every packet: the Member receiving care and the employer of record. Pay rates are set per employee in their profile."
     ),
     renderSections(EMPLOYER_SECTIONS, state.employer, () => store.saveEmployer(state.employer))
   );

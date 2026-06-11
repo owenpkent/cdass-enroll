@@ -109,10 +109,10 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
   // ---- Page 10: Services and rates ----
   check(form, "New Service", opts.newService);
   check(form, "Change Hourly Rate: only mark if the attendant is already working", !opts.newService);
-  setText(form, "CDASS Standard Rate", emp.rateStandardCdass);
-  setText(form, "CDASS Emergency Rate", emp.rateEmergencyCdass);
-  setText(form, "SLS Health Maintenance Standard Rate", emp.rateStandardHm);
-  setText(form, "SLS Health Maintenance Emergency Rate", emp.rateEmergencyHm);
+  setText(form, "CDASS Standard Rate", p.rateStandardCdass);
+  setText(form, "CDASS Emergency Rate", p.rateEmergencyCdass);
+  setText(form, "SLS Health Maintenance Standard Rate", p.rateStandardHm);
+  setText(form, "SLS Health Maintenance Emergency Rate", p.rateEmergencyHm);
   setText(form, "Attendant Signature Date", sig);
   setText(form, "Employer Signature Date", sig);
 

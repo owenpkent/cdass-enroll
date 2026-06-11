@@ -159,6 +159,16 @@ export const PROFILE_SECTIONS = [
     ],
   },
   {
+    id: "rates",
+    title: "Pay rates ($/hour, for this attendant)",
+    fields: [
+      { key: "rateStandardCdass", label: "CDASS standard rate", type: "money", placeholder: "e.g. 18" },
+      { key: "rateEmergencyCdass", label: "CDASS emergency rate", type: "money" },
+      { key: "rateStandardHm", label: "Health maintenance standard rate", type: "money" },
+      { key: "rateEmergencyHm", label: "Health maintenance emergency rate", type: "money" },
+    ],
+  },
+  {
     id: "i9",
     title: "I-9 work authorization",
     fields: [
@@ -237,16 +247,6 @@ export const EMPLOYER_SECTIONS = [
       { key: "businessName", label: "Business or organization name (I-9 / W-4)", type: "text" },
       { key: "businessAddress", label: "Business address (street, city, state, ZIP)", type: "text" },
       { key: "ein", label: "EIN (W-4)", type: "text" },
-    ],
-  },
-  {
-    id: "rates",
-    title: "Default pay rates ($/hour)",
-    fields: [
-      { key: "rateStandardCdass", label: "CDASS standard rate", type: "money" },
-      { key: "rateEmergencyCdass", label: "CDASS emergency rate", type: "money" },
-      { key: "rateStandardHm", label: "Health maintenance standard rate", type: "money" },
-      { key: "rateEmergencyHm", label: "Health maintenance emergency rate", type: "money" },
     ],
   },
 ];

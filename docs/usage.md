@@ -7,7 +7,7 @@ To start the app: `python run.py` in the project folder. It installs
 anything missing on first run and opens http://127.0.0.1:5180 in your
 browser.
 
-## Before the first hire: set up the Employer & rates tab
+## Before the first hire: set up the Employer & Member tab
 
 This information is the same for every attendant you hire, so enter it once:
 
@@ -17,8 +17,9 @@ This information is the same for every attendant you hire, so enter it once:
 - **Employer of record**: whoever signs as the employer. For the I-9 and W-4
   employer blocks, also fill the business/organization name (something like
   "Jane Smith, Household Employer" works), business address, and EIN.
-- **Default pay rates**: the standard and emergency hourly rates for CDASS
-  and Health Maintenance. These come from your task worksheet / budget.
+
+Pay rates are not here: they differ per attendant, so they live in each
+employee's profile.
 
 Everything saves as you type.
 
@@ -66,6 +67,9 @@ Work down the sections. Things the scans cannot know:
 - **Work details**: relationship to the Member, the living situation (this
   drives the EVV exemption pages), and the relation-to-employer question
   (this drives the tax exemption attestations).
+- **Pay rates**: this attendant's hourly rates for the Services and Rates
+  form (rates are person-specific; for reference, past hires were $15 in
+  2021 and $18 in late 2024).
 - **I-9 work authorization**: citizenship status; extra numbers only if they
   are a permanent resident or visa holder.
 - **W-4 withholding**: filing status and any Step 2-4 amounts. When in doubt
