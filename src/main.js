@@ -466,7 +466,7 @@ function renderGenerate() {
       ),
       h("h3", {}, "Forms to generate"),
       h("label", { class: "check" }, packetCb, "PPL CDASS Attendant Packet 2026 (enrollment, agreement, direct deposit, rates, tax exemptions, EVV exemption, I-9)"),
-      h("label", { class: "check" }, w4Cb, "IRS W-4 withholding (2024 revision, as distributed by PPL)"),
+      h("label", { class: "check" }, w4Cb, "IRS W-4 withholding (2026 revision, as distributed by PPL)"),
       h("label", { class: "check" }, i9Cb, "Standalone USCIS I-9 (the packet already includes one; only if PPL asks for it separately)"),
       h("label", { class: "check" }, newServiceCb, "Rate form: this is a new service (uncheck for an hourly-rate change)"),
       h("div", { class: "btnrow" }, h("button", { class: "btn primary", onclick: generate }, "Generate & download")),

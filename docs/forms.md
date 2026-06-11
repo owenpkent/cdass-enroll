@@ -32,6 +32,9 @@ Quirks of the original PDF (not bugs in this app):
   one-character fields ("Routing number 1".."9", "Account number 1".."13").
 - **EVV exemption City/State/ZIP are shared with the I-9 employee address.**
   Harmless: a live-in attendant's address is the shared residence anyway.
+- **The shared State field also surfaces on the Direct Deposit page**, so the
+  paper-check mailing State box shows the attendant's state even when direct
+  deposit is selected. Cosmetic only.
 - **Age-gated attestations.** "I am under 18 years old and a full-time
   student", "...under the age of 21" etc. are only checked when the date of
   birth confirms the age, regardless of the profile toggles.
@@ -46,9 +49,9 @@ that deleted the template).
 
 ## IRS W-4: `src/fill/w4.js`
 
-The bundled template is the 2024 revision (the one PPL links). The IRS kept
-Steps 1-2 field names stable since the 2020 redesign but renumbered the rest
-in 2024:
+The bundled template is the 2026 revision (downloaded from PPL's link, whose
+filename still says 2024). The IRS kept Steps 1-2 field names stable since
+the 2020 redesign but renumbered the rest in 2024:
 
 | Value | 2020-2023 | 2024+ |
 | --- | --- | --- |
