@@ -3,6 +3,10 @@
 This is the full workflow for onboarding a new CDASS attendant with this app.
 Total time once you have their documents: about ten minutes.
 
+To start the app: `python run.py` in the project folder. It installs
+anything missing on first run and opens http://127.0.0.1:5180 in your
+browser.
+
 ## Before the first hire: set up the Employer & rates tab
 
 This information is the same for every attendant you hire, so enter it once:

@@ -18,9 +18,12 @@ photos are decoded in memory and never stored. See
 ## Quick start
 
 ```
-npm install   # one time; also vendors offline OCR/barcode assets (~20 MB)
-npm run dev   # open http://127.0.0.1:5180
+python run.py
 ```
+
+That installs dependencies on first run (including the offline OCR/barcode
+assets, ~20 MB), starts the local server, and opens the app at
+http://127.0.0.1:5180. Plain npm works too (`npm install`, `npm run dev`).
 
 Then, in the app:
 
@@ -92,9 +95,11 @@ review them.
 ## Development
 
 ```
-npm run dev          # dev server on http://127.0.0.1:5180
-npm run build        # static build to dist/
-node tests/smoke.mjs # parser tests + fills every form with sample data
+python run.py          # dev server + browser at http://127.0.0.1:5180
+python run.py test     # parser tests + fills every form with sample data
+python run.py build    # static build to dist/
+python run.py serve    # build, then serve the production build
+python run.py install  # npm install / re-vendor assets only
 ```
 
 The smoke test writes filled PDFs to `tests/out/` (gitignored) so mapping

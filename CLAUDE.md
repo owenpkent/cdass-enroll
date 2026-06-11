@@ -7,11 +7,13 @@ CSP in index.html enforces this and should stay.
 
 ## Commands
 
-- `npm run dev` - dev server at http://127.0.0.1:5180 (port is pinned; 5173
-  belongs to MacroVox's webview on this machine, never use it)
-- `npm run build` - static build
-- `node tests/smoke.mjs` - run this after any change to src/extract/ or
-  src/fill/; it fills the real templates into tests/out/
+- `python run.py` - preferred launcher: installs if needed, starts the dev
+  server at http://127.0.0.1:5180, opens the browser. Also `run.py test`,
+  `run.py build`, `run.py serve`, `run.py install`
+- The port is pinned to 5180; 5173 belongs to MacroVox's webview on this
+  machine, never use it
+- `node tests/smoke.mjs` (or `python run.py test`) - run after any change to
+  src/extract/ or src/fill/; it fills the real templates into tests/out/
 - `npm run setup` - re-vendor WASM/OCR assets into public/ (also runs on
   install)
 

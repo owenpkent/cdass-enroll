@@ -79,6 +79,7 @@ src/fill/i9.js           I-9 Section 1 + 2 (identical fields in both packets)
 src/fill/w4.js           W-4 with 2020-2023 vs 2024+ layout detection
 scripts/setup-assets.mjs Vendors WASM/OCR assets at install time
 tests/smoke.mjs          Parser unit tests + fills every form with sample data
+run.py                   Launcher: install-if-needed, dev/test/build/serve
 ```
 
 ## Design decisions worth remembering
