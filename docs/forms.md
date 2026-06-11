@@ -36,24 +36,13 @@ Quirks of the original PDF (not bugs in this app):
   student", "...under the age of 21" etc. are only checked when the date of
   birth confirms the age, regardless of the profile toggles.
 
-## CO-CDASS-Attendant-Packet-2025 (legacy): `src/fill/packet2025.js`
+## CO-CDASS-Attendant-Packet-2025 (removed)
 
-17 pages, 211 fields, mostly auto-generated field names ("First_3",
-"undefined_2"). Kept for completeness; off by default in the Generate tab.
-
-Quirks:
-
-- **One shared signature-date field** ("Date") across the enrollment,
-  agreement, rate, FLSA, EVV, and difficulty-of-care pages: one value dates
-  them all.
-- **"Document Title 1" is shared** between I-9 Section 2 List A and the
-  Supplement B (rehire) row 1, so a List A title (e.g. "U.S. Passport") also
-  shows on the rehire page. Supplement B is only used for rehires; disregard
-  for new hires.
-- **The "mailing same as home" checkbox is broken in the PDF** (one field
-  shared across three unrelated checkboxes on pages 2, 7, and 8), so the app
-  copies the home address into the mailing section instead of checking it.
-- **Routing/account fields are literally named** `undefined_2`/`undefined_3`.
+The previous packet (17 pages, 211 auto-generated field names like "First_3"
+and "undefined_2") was supported until June 2026 and then removed since PPL
+only accepts the current packet. If it is ever needed again, the mapping
+lives in git history (`src/fill/packet2025.js`, removed in the same commit
+that deleted the template).
 
 ## IRS W-4: `src/fill/w4.js`
 
@@ -75,10 +64,11 @@ The filler detects the layout by whether `f1_08` exists, so either era of
 W-4 dropped onto `public/forms/w4.pdf` fills correctly. Filing status is
 three sibling checkboxes (`c1_1[0..2]`), not a radio group.
 
-## I-9 (embedded in both packets): `src/fill/i9.js`
+## I-9 (embedded in the packet): `src/fill/i9.js`
 
-Both PPL packets embed the same USCIS I-9 build with identical field names,
-so the mapping is shared. Document logic:
+The I-9 mapping is its own module (the 2025 and 2026 packets embedded the
+same USCIS I-9 build, and a future packet revision likely will too).
+Document logic:
 
 - Profile has a **passport number**: List A gets "U.S. Passport" with number
   and expiration.

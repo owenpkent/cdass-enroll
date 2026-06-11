@@ -41,7 +41,6 @@ The full walkthrough, including scanning tips and what each form needs, is in
 | Form | Template | Notes |
 | --- | --- | --- |
 | PPL CDASS Attendant Packet 2026 CFC & Waiver | `public/forms/CO-CDASS-Attendant-Packet-2026.pdf` | The current packet: enrollment + agreement, direct deposit, services & rates, tax exemptions, EVV exemption, I-9 |
-| PPL CDASS Attendant Packet 2025 | `public/forms/CO-CDASS-Attendant-Packet-2025.pdf` | Previous version, off by default |
 | IRS W-4 (2024 revision) | `public/forms/w4.pdf` | Auto-detects the 2020-2023 vs 2024+ field layouts, so a future-year W-4 dropped over this file keeps working |
 
 Signatures are intentionally never auto-filled, and the app deliberately

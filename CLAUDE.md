@@ -19,7 +19,8 @@ CSP in index.html enforces this and should stay.
 
 - `src/schema.js` defines all profile/employer fields; the UI renders from it
 - `src/fill/*.js` map exact PDF field names to values, one module per form
-  revision; `i9.js` is shared by both packet mappings
+  revision; `i9.js` holds the embedded I-9 section. Only the current 2026
+  packet is supported (the 2025 mapping was removed; it is in git history)
 - `docs/forms.md` documents every mapping, template quirk, and the form
   revision workflow; update it when mappings change
 - Blank templates: `public/forms/`. Never commit filled forms or anything

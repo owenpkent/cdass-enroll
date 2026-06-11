@@ -3,7 +3,6 @@
 // Run: node tests/smoke.mjs
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { fillPacket } from "../src/fill/packet2025.js";
 import { fillPacket2026 } from "../src/fill/packet2026.js";
 import { fillW4 } from "../src/fill/w4.js";
 import { parseAamva } from "../src/extract/aamva.js";
@@ -87,10 +86,6 @@ const employer = {
 const opts = { signatureDate: "2026-06-11", firstDay: "2026-06-15", rateEffectiveDate: "2026-06-15", newService: true };
 
 mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
-
-const packetBytes = await fillPacket(readFileSync(new URL("../public/forms/CO-CDASS-Attendant-Packet-2025.pdf", import.meta.url)), profile, employer, opts);
-writeFileSync(new URL("./out/packet-filled.pdf", import.meta.url), packetBytes);
-expect("packet filled and saved", packetBytes.length > 100000, String(packetBytes.length));
 
 const w4Bytes = await fillW4(readFileSync(new URL("../public/forms/w4.pdf", import.meta.url)), profile, employer, opts);
 writeFileSync(new URL("./out/w4-filled.pdf", import.meta.url), w4Bytes);
