@@ -64,8 +64,9 @@ export const PROFILE_SECTIONS = [
   },
   {
     id: "mailing",
-    title: "Mailing address (only if different)",
-    showIf: (p) => !p.mailingSame,
+    title: "Mailing address",
+    note: 'Mail goes to the home address while "Mailing address is the same" is checked above. Uncheck it to send mail elsewhere; these fields then unlock pre-filled from the home address, so you change only what differs.',
+    disableIf: (p) => p.mailingSame,
     fields: [
       { key: "mailStreet", label: "Address", type: "text" },
       { key: "mailStreet2", label: "Apt / Ste / Unit", type: "text" },

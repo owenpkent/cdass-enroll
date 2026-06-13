@@ -3,6 +3,7 @@
 // Run: node tests/smoke.mjs
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { PDFDocument } from "pdf-lib";
 import { fillPacket2026 } from "../src/fill/packet2026.js";
 import { fillI9Standalone } from "../src/fill/i9.js";
 import { fillW4 } from "../src/fill/w4.js";
@@ -95,6 +96,16 @@ const packet2026Src = readFileSync(new URL("../public/forms/CO-CDASS-Attendant-P
 const p26 = await fillPacket2026(packet2026Src, profile, employer, opts);
 writeFileSync(new URL("./out/packet2026-filled.pdf", import.meta.url), p26);
 expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
+
+// The output must stay an exact, editable copy of the packet: same pages, same
+// live form fields (not flattened), just with values filled in.
+{
+  const tmpl = await PDFDocument.load(packet2026Src);
+  const out = await PDFDocument.load(p26);
+  expect("packet output keeps every page (exact copy)", out.getPageCount() === tmpl.getPageCount(), `${out.getPageCount()} vs ${tmpl.getPageCount()}`);
+  const nOut = out.getForm().getFields().length, nTmpl = tmpl.getForm().getFields().length;
+  expect("packet fields stay editable (not flattened)", nOut === nTmpl && nOut > 0, `${nOut} vs ${nTmpl}`);
+}
 
 const i9Bytes = await fillI9Standalone(readFileSync(new URL("../public/forms/i9.pdf", import.meta.url)), profile, employer, opts);
 writeFileSync(new URL("./out/i9-filled.pdf", import.meta.url), i9Bytes);

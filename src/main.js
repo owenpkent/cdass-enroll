@@ -62,9 +62,19 @@ function renderSections(sections, obj, onChange) {
   const wrap = h("div");
   for (const section of sections) {
     const body = h("div", { class: "grid" });
-    const card = h("div", { class: "card", "data-section": section.id }, h("h2", {}, section.title), body);
+    const card = h(
+      "div",
+      { class: "card", "data-section": section.id },
+      h("h2", {}, section.title),
+      section.note ? h("p", { class: "note" }, section.note) : null,
+      body
+    );
     const sync = () => {
       if (section.showIf) card.style.display = section.showIf(obj) ? "" : "none";
+      if (section.disableIf) {
+        const off = section.disableIf(obj);
+        for (const el of body.querySelectorAll("input, select, textarea")) el.disabled = off;
+      }
     };
     for (const f of section.fields) {
       if (f.type === "checkbox") {
