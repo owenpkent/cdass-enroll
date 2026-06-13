@@ -21,21 +21,57 @@ export function parseAamva(raw) {
   let last = el.DCS ?? "";
   if (!last && el.DAA) [last = "", first = "", middle = ""] = el.DAA.split(",");
 
-  return clean({
+  // Address. DAG-DAK is the mandatory card address. Some (older) cards also
+  // carry the deprecated residence set DAL-DAP; per AAMVA, when both are
+  // present DAG-DAK is the MAILING address and DAL-DAP is the residence. Use
+  // residence as the home address and import the mailing address separately,
+  // so a mailing address that differs from the license (e.g. a PO Box) carries
+  // over instead of being silently treated as where they live.
+  const carded = address(el.DAG, el.DAH, el.DAI, el.DAJ, el.DAK);
+  const residence = el.DAL ? address(el.DAL, el.DAM, el.DAN, el.DAO, el.DAP) : null;
+  const separateMailing =
+    residence && complete(residence) && complete(carded) && !sameAddress(residence, carded);
+  const home = separateMailing ? residence : carded;
+
+  const out = {
     first: titleCase(first),
     middle: titleCase(stripNone(middle)),
     last: titleCase(last),
     dob: aamvaDate(el.DBB),
-    street: titleCase(el.DAG),
-    street2: titleCase(stripNone(el.DAH)),
-    city: titleCase(el.DAI),
-    state: el.DAJ,
-    zip: el.DAK ? formatZip(el.DAK) : "",
+    ...home,
     gender: el.DBC === "1" ? "male" : el.DBC === "2" ? "female" : "",
     dlNumber: el.DAQ,
     dlState: el.DAJ,
     dlExpiration: aamvaDate(el.DBA),
-  });
+  };
+  if (separateMailing) {
+    out.mailingSame = false;
+    out.mailStreet = carded.street;
+    out.mailStreet2 = carded.street2;
+    out.mailCity = carded.city;
+    out.mailState = carded.state;
+    out.mailZip = carded.zip;
+  }
+  return clean(out);
+}
+
+function address(street, street2, city, state, zip) {
+  return {
+    street: titleCase(street),
+    street2: titleCase(stripNone(street2)),
+    city: titleCase(city),
+    state: state ?? "",
+    zip: zip ? formatZip(zip) : "",
+  };
+}
+
+// A usable home/mailing address needs at least a street, city, and ZIP.
+function complete(a) {
+  return !!(a.street && a.city && a.zip);
+}
+
+function sameAddress(a, b) {
+  return a.street === b.street && a.city === b.city && a.state === b.state && a.zip === b.zip;
 }
 
 // US AAMVA dates are MMDDCCYY; Canadian are CCYYMMDD. Returns ISO yyyy-mm-dd.
@@ -69,6 +105,7 @@ function titleCase(s) {
 
 function clean(obj) {
   const out = {};
-  for (const [k, v] of Object.entries(obj)) if (v) out[k] = v;
+  // Keep explicit false (mailingSame) and 0; drop only empty strings and nullish.
+  for (const [k, v] of Object.entries(obj)) if (v !== "" && v != null) out[k] = v;
   return out;
 }

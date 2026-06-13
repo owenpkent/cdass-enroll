@@ -38,6 +38,34 @@ expect("AAMVA dob MMDDCCYY", dl.dob === "1986-06-06", dl.dob);
 expect("AAMVA address", dl.street === "1234 Main St" && dl.city === "Denver" && dl.state === "CO" && dl.zip === "80203", JSON.stringify(dl));
 expect("AAMVA license", dl.dlNumber === "123456789" && dl.dlExpiration === "2030-09-30", JSON.stringify(dl));
 expect("AAMVA gender", dl.gender === "female", dl.gender);
+expect("AAMVA single address sets no mailing", dl.mailingSame === undefined && !dl.mailStreet, JSON.stringify(dl));
+
+// ---- AAMVA with a separate mailing address (older dual-address card) ----
+// DAG-DAK is the mailing address; DAL-DAP is the residence (where they live).
+const aamvaMailingRaw = [
+  "@\n\x1e\rANSI 636020090002DL00410278ZC03190008DLDAQ987654321",
+  "DCSDOE",
+  "DACJOHN",
+  "DADQUINCY",
+  "DBB19900101",
+  "DBA09302031",
+  "DBC1",
+  "DAG78 OAK AVE",
+  "DAIASPEN",
+  "DAJCO",
+  "DAK816110000",
+  "DAL500 PINE ST",
+  "DANBOULDER",
+  "DAOCO",
+  "DAP803020000",
+].join("\n");
+const dlMail = parseAamva(aamvaMailingRaw);
+expect("AAMVA home = residence", dlMail.street === "500 Pine St" && dlMail.city === "Boulder" && dlMail.zip === "80302", JSON.stringify(dlMail));
+expect(
+  "AAMVA imports separate mailing",
+  dlMail.mailingSame === false && dlMail.mailStreet === "78 Oak Ave" && dlMail.mailCity === "Aspen" && dlMail.mailZip === "81611",
+  JSON.stringify(dlMail)
+);
 
 // ---- MRZ (passport) ----  (valid check digits: number 0, dob 2, expiry 7)
 const mrzText = `

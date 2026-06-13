@@ -41,7 +41,10 @@ phone photo or any image file:
   the PDF417 barcode (the wide striped rectangle), which contains their full
   name, address, date of birth, license number, and expiration exactly as the
   DMV recorded them. Tips: lay the card flat, fill the frame, avoid glare.
-  The front of the card is not used.
+  The front of the card is not used. If the barcode carries a separate mailing
+  address (some older cards encode both a residence and a mailing address),
+  the home address is set to the residence and the mailing address fills in
+  automatically, unchecking "Mailing address is the same".
 - **Passport**: photograph the photo page straight-on with the whole page in
   frame. The app reads the two machine-readable `<<<` lines and validates
   their check digits. The first OCR run takes a few seconds to warm up.
@@ -62,6 +65,9 @@ physical document, especially OCR results from the SSN card.
 Work down the sections. Things the scans cannot know:
 
 - Contact details, preferred contact method, texting consent.
+- **Mailing address**: if it differs from the home address on the license and
+  the barcode did not supply it, uncheck "Mailing address is the same" and
+  type it in. Otherwise mail goes to the home address.
 - **Payment**: bank name, routing and account numbers for direct deposit
   (or uncheck direct deposit for paper checks).
 - **Work details**: relationship to the Member, the living situation (this
