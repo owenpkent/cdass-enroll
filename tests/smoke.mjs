@@ -60,6 +60,10 @@ expect("MRZ expiry", mrz?.passportExpiration === "2031-05-15", mrz?.passportExpi
 const ssnFields = parseSsnCard("SOCIAL SECURITY\n123-45-6789\nJane Marie Doe\nSIGNATURE");
 expect("SSN extracted", ssnFields?.ssn === "123-45-6789", JSON.stringify(ssnFields));
 expect("SSN card name", ssnFields?.first === "Jane" && ssnFields?.last === "Doe", JSON.stringify(ssnFields));
+expect("SSN OCR look-alikes corrected", parseSsnCard("I23-4S-6789")?.ssn === "123-45-6789", JSON.stringify(parseSsnCard("I23-4S-6789")));
+expect("SSN spaces tolerated", parseSsnCard("SSN 123 45 6789")?.ssn === "123-45-6789", JSON.stringify(parseSsnCard("SSN 123 45 6789")));
+expect("implausible SSN rejected", parseSsnCard("000-12-3456") === null, JSON.stringify(parseSsnCard("000-12-3456")));
+expect("phone number is not read as an SSN", parseSsnCard("Call 303-555-0100") === null, JSON.stringify(parseSsnCard("Call 303-555-0100")));
 
 // ---- Fill both PDFs ----
 const profile = {

@@ -10,8 +10,11 @@
   Indirect daylight works better than a flash.
 - Crop the photo to roughly the card before uploading if the background is
   busy.
+- The app automatically retries with an upscaled, high-contrast version of the
+  photo, so if it still fails the barcode is likely out of focus, too small in
+  the frame, or you photographed the front by mistake.
 - Very worn cards sometimes have unreadable barcodes; type the details in
-  manually.
+  manually (the license number, state, and expiration are all editable).
 
 **Passport MRZ won't read or values look wrong**
 
@@ -26,8 +29,11 @@
 **SSN card OCR misses the number or name**
 
 - Even lighting, no shadows across the card, fill the frame.
-- OCR on these cards is the least reliable of the three scans. Verify every
-  digit; correcting by hand is expected sometimes.
+- The app retries with an enhanced (upscaled, high-contrast) image and
+  tolerates common digit misreads (I for 1, S for 5, and so on), but OCR on
+  these cards is still the least reliable of the three scans.
+- If it keeps missing, just type the nine digits into the SSN field; verify
+  every digit either way.
 
 ## Setup
 

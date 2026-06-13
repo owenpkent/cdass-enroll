@@ -2,8 +2,8 @@
 
 export function parseSsnCard(ocrText) {
   const out = {};
-  const ssn = ocrText.match(/\b(\d{3})[\s-]?(\d{2})[\s-]?(\d{4})\b/);
-  if (ssn) out.ssn = `${ssn[1]}-${ssn[2]}-${ssn[3]}`;
+  const ssn = findSsn(ocrText);
+  if (ssn) out.ssn = ssn;
 
   // The cardholder name is printed in caps below the number. Look for the
   // first line that is 2+ capitalized words and not boilerplate.
@@ -19,6 +19,38 @@ export function parseSsnCard(ocrText) {
     }
   }
   return Object.keys(out).length ? out : null;
+}
+
+// Strong OCR look-alikes for digits, applied only on the tolerant second pass.
+const LOOKALIKE = { O: "0", o: "0", Q: "0", l: "1", I: "1", "|": "1", S: "5", B: "8", Z: "2" };
+const CH = "0-9OoQlI|SBZ";
+
+function findSsn(text) {
+  // Real digits first (the common case): least chance of a false positive.
+  for (const m of text.matchAll(/(?<![0-9])(\d{3})[\s.\-]?(\d{2})[\s.\-]?(\d{4})(?![0-9])/g)) {
+    const d = m[1] + m[2] + m[3];
+    if (plausibleSsn(d)) return fmtSsn(d);
+  }
+  // Then tolerate common OCR letter-for-digit confusions (I->1, S->5, ...).
+  const re = new RegExp(`(?<![${CH}])([${CH}]{3})[\\s.\\-]?([${CH}]{2})[\\s.\\-]?([${CH}]{4})(?![${CH}])`, "g");
+  for (const m of text.matchAll(re)) {
+    const d = (m[1] + m[2] + m[3]).replace(/[A-Za-z|]/g, (c) => LOOKALIKE[c] ?? c);
+    if (/^\d{9}$/.test(d) && plausibleSsn(d)) return fmtSsn(d);
+  }
+  return "";
+}
+
+// Reject groupings the SSA never issues, so a stray number (a date, a phone
+// number) is not mistaken for an SSN.
+function plausibleSsn(d) {
+  const area = +d.slice(0, 3);
+  const group = +d.slice(3, 5);
+  const serial = +d.slice(5);
+  return area !== 0 && area !== 666 && area < 900 && group !== 0 && serial !== 0;
+}
+
+function fmtSsn(d) {
+  return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
 }
 
 function titleCase(s) {
