@@ -42,7 +42,24 @@ export const PROFILE_SECTIONS = [
       { key: "zip", label: "ZIP code", type: "text", width: "s" },
       { key: "county", label: "County", type: "text" },
       { key: "municipality", label: "Municipality", type: "text" },
-      { key: "mailingSame", label: "Mailing address is the same", type: "checkbox", default: true },
+      {
+        key: "mailingSame",
+        label: "Mailing address is the same",
+        type: "checkbox",
+        default: true,
+        // Unchecking means mail goes elsewhere than the home/license address.
+        // Seed the mailing fields from the home address (when still empty) so
+        // the user edits only what differs instead of retyping the whole thing.
+        onToggle: (p) => {
+          if (p.mailingSame || p.mailStreet || p.mailCity || p.mailZip) return [];
+          p.mailStreet = p.street;
+          p.mailStreet2 = p.street2;
+          p.mailCity = p.city;
+          p.mailState = p.state;
+          p.mailZip = p.zip;
+          return ["mailStreet", "mailStreet2", "mailCity", "mailState", "mailZip"];
+        },
+      },
     ],
   },
   {

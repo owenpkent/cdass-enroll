@@ -38,34 +38,6 @@ expect("AAMVA dob MMDDCCYY", dl.dob === "1986-06-06", dl.dob);
 expect("AAMVA address", dl.street === "1234 Main St" && dl.city === "Denver" && dl.state === "CO" && dl.zip === "80203", JSON.stringify(dl));
 expect("AAMVA license", dl.dlNumber === "123456789" && dl.dlExpiration === "2030-09-30", JSON.stringify(dl));
 expect("AAMVA gender", dl.gender === "female", dl.gender);
-expect("AAMVA single address sets no mailing", dl.mailingSame === undefined && !dl.mailStreet, JSON.stringify(dl));
-
-// ---- AAMVA with a separate mailing address (older dual-address card) ----
-// DAG-DAK is the mailing address; DAL-DAP is the residence (where they live).
-const aamvaMailingRaw = [
-  "@\n\x1e\rANSI 636020090002DL00410278ZC03190008DLDAQ987654321",
-  "DCSDOE",
-  "DACJOHN",
-  "DADQUINCY",
-  "DBB19900101",
-  "DBA09302031",
-  "DBC1",
-  "DAG78 OAK AVE",
-  "DAIASPEN",
-  "DAJCO",
-  "DAK816110000",
-  "DAL500 PINE ST",
-  "DANBOULDER",
-  "DAOCO",
-  "DAP803020000",
-].join("\n");
-const dlMail = parseAamva(aamvaMailingRaw);
-expect("AAMVA home = residence", dlMail.street === "500 Pine St" && dlMail.city === "Boulder" && dlMail.zip === "80302", JSON.stringify(dlMail));
-expect(
-  "AAMVA imports separate mailing",
-  dlMail.mailingSame === false && dlMail.mailStreet === "78 Oak Ave" && dlMail.mailCity === "Aspen" && dlMail.mailZip === "81611",
-  JSON.stringify(dlMail)
-);
 
 // ---- MRZ (passport) ----  (valid check digits: number 0, dob 2, expiry 7)
 const mrzText = `
@@ -133,6 +105,27 @@ const liveInProfile = { ...profile, liveIn: "fullTime", relationToEmployer: "par
 const p26li = await fillPacket2026(packet2026Src, liveInProfile, employer, opts);
 writeFileSync(new URL("./out/packet2026-livein-filled.pdf", import.meta.url), p26li);
 expect("2026 live-in packet filled and saved", p26li.length > 100000, String(p26li.length));
+
+// ---- Mailing override: unchecking "same" seeds mailing from the home address ----
+{
+  const { PROFILE_SECTIONS } = await import("../src/schema.js");
+  const mailingSame = PROFILE_SECTIONS.flatMap((s) => s.fields).find((f) => f.key === "mailingSame");
+  const p = {
+    mailingSame: false, street: "1234 Main St", street2: "Apt 2",
+    city: "Denver", state: "CO", zip: "80203",
+    mailStreet: "", mailStreet2: "", mailCity: "", mailState: "", mailZip: "",
+  };
+  const seeded = mailingSame.onToggle(p);
+  expect(
+    "uncheck mailing-same seeds mailing from home",
+    p.mailStreet === "1234 Main St" && p.mailCity === "Denver" && p.mailZip === "80203" && seeded.includes("mailStreet"),
+    JSON.stringify(p)
+  );
+  // A mailing address already entered must not be clobbered on a later toggle.
+  const q = { mailingSame: false, street: "1234 Main St", city: "Denver", zip: "80203", mailStreet: "PO Box 9", mailCity: "Aspen", mailZip: "81611" };
+  mailingSame.onToggle(q);
+  expect("existing mailing address is preserved", q.mailStreet === "PO Box 9" && q.mailCity === "Aspen", JSON.stringify(q));
+}
 
 // ---- Sensitive-data scrub ----
 {

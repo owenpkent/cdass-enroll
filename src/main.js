@@ -72,12 +72,15 @@ function renderSections(sections, obj, onChange) {
           type: "checkbox",
           onchange: (e) => {
             obj[f.key] = e.target.checked;
+            if (f.onToggle) {
+              const seeded = f.onToggle(obj);
+              refreshInputs(wrap, obj, seeded?.length ? new Set(seeded) : undefined);
+            }
             onChange(f.key);
             wrap.dispatchEvent(new CustomEvent("resync", { bubbles: false }));
           },
         });
         cb.checked = !!obj[f.key];
-        cb.dataset.key = f.key;
         body.append(h("label", { class: "check" }, cb, f.label));
       } else if (f.type === "select") {
         const sel = h(
@@ -122,11 +125,7 @@ function refreshInputs(container, obj, changedKeys) {
   for (const el of container.querySelectorAll("[data-key]")) {
     const k = el.dataset.key;
     if (!(k in obj)) continue;
-    if (el.type === "checkbox") {
-      if (el.checked !== !!obj[k]) el.checked = !!obj[k];
-    } else if (el.value !== String(obj[k] ?? "")) {
-      el.value = obj[k] ?? "";
-    }
+    if (el.value !== String(obj[k] ?? "")) el.value = obj[k] ?? "";
     if (changedKeys?.has(k)) {
       el.classList.add("flash");
       setTimeout(() => el.classList.remove("flash"), 1600);
@@ -285,9 +284,6 @@ function renderEditor(profile) {
       }
       saveProfile(profile);
       refreshInputs(formArea, profile, changed);
-      // A scan can flip mailingSame (separate mailing address found), so
-      // re-run section visibility to reveal the mailing fields.
-      formArea.dispatchEvent(new CustomEvent("resync"));
       const warn = fields.passportNumberUnverified
         ? ` Passport number "${fields.passportNumberUnverified}" failed its check digit; verify it manually.`
         : "";
