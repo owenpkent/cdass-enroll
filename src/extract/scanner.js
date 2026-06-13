@@ -31,6 +31,20 @@ async function ocr(input) {
   return data.text ?? "";
 }
 
+// A pass constrained to digits and separators. Tesseract reads numbers far more
+// reliably when it cannot try to fit letters, which matters for the SSN. The
+// whitelist is cleared afterwards so the shared worker stays general-purpose.
+async function ocrDigits(input) {
+  const worker = await getOcrWorker();
+  await worker.setParameters({ tessedit_char_whitelist: "0123456789 -" });
+  try {
+    const { data } = await worker.recognize(input);
+    return data.text ?? "";
+  } finally {
+    await worker.setParameters({ tessedit_char_whitelist: "" });
+  }
+}
+
 // ---- image preprocessing -------------------------------------------------
 // Phone photos of small cards are often too low-resolution or low-contrast for
 // reliable OCR / barcode decoding. Upscaling and converting to high-contrast
@@ -118,10 +132,12 @@ export async function scanLicense(imageFile) {
 
 /** Scan the photo page of a passport (reads the MRZ lines at the bottom). */
 export async function scanPassport(imageFile) {
-  for (const input of [await enhanceCanvas(imageFile), imageFile]) {
-    const fields = parseMrz(await ocr(input));
-    if (fields) return { fields, source: "Passport MRZ" };
-  }
+  const input = (await enhanceCanvas(imageFile).catch(() => null)) ?? imageFile;
+  const text = await ocr(input);
+  const fields = parseMrz(text);
+  if (fields) return { fields, source: "Passport MRZ" };
+  if (text.replace(/\s/g, "").length <= 3)
+    throw new Error("OCR read no text from the image. The OCR model may not have loaded; check the browser console (F12), or re-run npm run setup.");
   throw new Error(
     "Could not read the passport MRZ (the two <<< lines). Retake straight-on with the whole page in frame and even lighting."
   );
@@ -129,11 +145,14 @@ export async function scanPassport(imageFile) {
 
 /** Scan a Social Security card. */
 export async function scanSsnCard(imageFile) {
-  for (const input of [await enhanceCanvas(imageFile), imageFile]) {
-    const fields = parseSsnCard(await ocr(input));
-    if (fields) return { fields, source: "Social Security card" };
-  }
+  const input = (await enhanceCanvas(imageFile).catch(() => null)) ?? imageFile;
+  // Normal pass for the name, digits-only pass for the number; search both.
+  const text = (await ocr(input)) + "\n" + (await ocrDigits(input));
+  const fields = parseSsnCard(text);
+  if (fields) return { fields, source: "Social Security card" };
+  if (text.replace(/\s/g, "").length <= 3)
+    throw new Error("OCR read no text from the image. The OCR model may not have loaded; check the browser console (F12), or re-run npm run setup.");
   throw new Error(
-    "Could not find an SSN in the image. Retake the front of the card straight on, filling the frame, with even lighting and no glare."
+    "Could not find an SSN in the image. Make sure the nine digits are sharp and fill the frame, or just type them into the SSN field."
   );
 }
