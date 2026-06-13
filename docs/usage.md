@@ -1,15 +1,20 @@
-# Enrolling a new attendant, step by step
+# Enrolling an attendant, step by step
 
-This is the full workflow for onboarding a new CDASS attendant with this app.
-Total time once you have their documents: about ten minutes.
+This is the full workflow for filling a CDASS attendant's enrollment packet
+with this app. It does one person at a time. Total time once you have their
+documents: about ten minutes.
 
-To start the app: `python run.py` in the project folder. It installs
-anything missing on first run and opens http://127.0.0.1:5180 in your
-browser.
+To start the app: `python run.py` in the project folder. It installs anything
+missing on first run and opens http://127.0.0.1:5180 in your browser.
 
-## Before the first hire: set up the Employer & Member tab
+The whole app is a single page: upload documents at the top, review the
+auto-filled form in the middle, generate the PDF at the bottom. Your own
+reused details live behind the **⚙ Your details** button in the top right.
 
-This information is the same for every attendant you hire, so enter it once:
+## One-time: set up "Your details"
+
+Open **⚙ Your details** (top right). This information is the same on every
+packet, so enter it once:
 
 - **Member**: the person receiving care (first/last name, PPL ID, and
   Medicaid ID; the Medicaid ID is only used on the EVV exemption form for
@@ -18,24 +23,13 @@ This information is the same for every attendant you hire, so enter it once:
   employer blocks, also fill the business/organization name (something like
   "Jane Smith, Household Employer" works), business address, and EIN.
 
-Pay rates are not here: they differ per attendant, so they live in each
-employee's profile.
+Everything saves as you type. If `public/seed.local.json` exists (it does on
+the original machine), these fields arrive pre-filled the first time the app
+runs in a browser profile. Click **← Back to enrollment** when done.
 
-Everything saves as you type.
+## Step 1: Upload identification documents
 
-If `public/seed.local.json` exists (it does on the original machine), this
-tab arrives pre-filled with the standing member/employer details the first
-time the app runs in a browser profile; only the current pay rates need
-checking.
-
-## Step 1: Add the employee
-
-Employees tab, "+ Add employee". You land in the editor.
-
-## Step 2: Scan their documents
-
-The fastest path is the scan card at the top of the employee editor. Use a
-phone photo or any image file:
+The scan card is at the top of the page. Use a phone photo or any image file:
 
 - **Driver's license**: photograph the **back** of the card. The app reads
   the PDF417 barcode (the wide striped rectangle), which contains their full
@@ -57,14 +51,15 @@ Which documents you need depends on the I-9:
 Every value a scan fills in flashes yellow. Check each one against the
 physical document, especially OCR results from the SSN card.
 
-## Step 3: Complete the rest of the profile
+## Step 2: Complete their information
 
-Work down the sections. Things the scans cannot know:
+The form is auto-filled from the scans and from Your details. Work down the
+sections and fill what the scans cannot know:
 
 - Contact details, preferred contact method, texting consent.
 - **Mailing address**: the scan fills the address printed on the license. If
   mail should go somewhere else, uncheck "Mailing address is the same"; the
-  mailing fields appear pre-filled from that address so you can change just
+  mailing fields unlock pre-filled from that address so you can change just
   what differs (a different street, a PO Box, etc.).
 - **Payment**: bank name, routing and account numbers for direct deposit
   (or uncheck direct deposit for paper checks).
@@ -80,18 +75,21 @@ Work down the sections. Things the scans cannot know:
 - **W-4 withholding**: filing status and any Step 2-4 amounts. When in doubt
   leave the money fields blank; the attendant can always file a new W-4.
 
-## Step 4: Generate
+## Step 3: Generate the PDF
 
-Generate forms tab:
+At the bottom of the page:
 
-- Pick the employee.
 - **Signature date**: printed next to every signature line (default today).
 - **First day of employment**: goes on the I-9 and W-4.
 - Leave "new service" checked for a new hire.
 - Click **Generate & download**. One PDF per selected form lands in
   Downloads, named like `Doe-Jane-CDASS-packet-2026.pdf`.
 
-## Step 5: Print, sign, submit
+Each PDF is an exact, editable copy of the official packet with the fields
+filled in, so you can still adjust anything in your PDF reader before
+printing.
+
+## Step 4: Print, sign, submit
 
 - Review **every page**. The app fills conservatively, but you are the one
   signing.
@@ -110,10 +108,12 @@ Generate forms tab:
   sensitive data** (SSN, date of birth, bank details, ID document numbers)
   while keeping their name, contact, and rates. Take it once the forms are
   printed and you won't need to regenerate.
+- **Start over (new person)** at the bottom clears the current person so you
+  can enroll the next one.
 - Generated PDFs contain the attendant's SSN. Store or shred them the way
   you would any tax document.
 - Anything you keep still auto-clears after the retention period (30 days
-  since last edit by default, adjustable in Privacy & data). Employer
-  settings persist and re-seed.
-- The Privacy & data tab can export a JSON backup of all profiles before
-  they expire. Keep it somewhere encrypted if you keep it at all.
+  since last edit by default, adjustable under ⚙ Your details). Your standing
+  details persist and re-seed.
+- ⚙ Your details can export a JSON backup before the data expires. Keep it
+  somewhere encrypted if you keep it at all.

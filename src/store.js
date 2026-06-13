@@ -1,8 +1,9 @@
 // All persistence is browser localStorage on this machine. Nothing leaves it.
 
-import { blankEmployer } from "./schema.js";
+import { blankEmployer, blankProfile } from "./schema.js";
 
-const PROFILES_KEY = "cdass.profiles.v1";
+const PROFILE_KEY = "cdass.profile.v1";
+const LEGACY_PROFILES_KEY = "cdass.profiles.v1"; // pre-simplification array of people
 const EMPLOYER_KEY = "cdass.employer.v1";
 const RETENTION_KEY = "cdass.retentionDays.v1";
 
@@ -10,7 +11,7 @@ export const RETENTION_CHOICES = [
   ["7", "7 days"],
   ["30", "30 days (default)"],
   ["90", "90 days"],
-  ["never", "Keep until wiped manually"],
+  ["never", "Keep until cleared manually"],
 ];
 
 export function getRetentionDays() {
@@ -27,32 +28,62 @@ export function getRetentionSetting() {
 }
 
 /**
- * Delete employee profiles untouched for longer than the retention period.
- * Employer settings are kept; they re-seed from seed.local.json anyway.
- * Returns the number of profiles removed.
+ * The single person currently being enrolled. The first time this runs after
+ * the multi-profile simplification, it migrates the most recently touched
+ * person out of the old array so existing data is not lost.
  */
-export function purgeStaleProfiles(now = Date.now()) {
-  const days = getRetentionDays();
-  if (days == null) return 0;
-  const cutoff = now - days * 24 * 60 * 60 * 1000;
-  const profiles = loadProfiles();
-  // Profiles saved before timestamps existed get stamped now (one grace period).
-  for (const p of profiles) p.touchedAt ??= now;
-  const kept = profiles.filter((p) => p.touchedAt >= cutoff);
-  saveProfiles(kept);
-  return profiles.length - kept.length;
-}
-
-export function loadProfiles() {
+export function loadProfile() {
   try {
-    return JSON.parse(localStorage.getItem(PROFILES_KEY)) ?? [];
+    const p = JSON.parse(localStorage.getItem(PROFILE_KEY));
+    if (p && typeof p === "object") return { ...blankProfile(), ...p };
   } catch {
-    return [];
+    /* fall through */
   }
+  const legacy = mostRecentLegacy();
+  if (legacy) return { ...blankProfile(), ...legacy };
+  return blankProfile();
 }
 
-export function saveProfiles(profiles) {
-  localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+function mostRecentLegacy() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(LEGACY_PROFILES_KEY));
+    if (Array.isArray(arr) && arr.length)
+      return [...arr].sort((a, b) => (b.touchedAt ?? 0) - (a.touchedAt ?? 0))[0];
+  } catch {
+    /* none */
+  }
+  return null;
+}
+
+export function saveProfile(profile) {
+  profile.touchedAt = Date.now();
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+export function clearProfile() {
+  localStorage.removeItem(PROFILE_KEY);
+}
+
+/**
+ * Clear the stored person if untouched longer than the retention period.
+ * Returns true if it was cleared.
+ */
+export function purgeStaleProfile(now = Date.now()) {
+  const days = getRetentionDays();
+  if (days == null) return false;
+  let p;
+  try {
+    p = JSON.parse(localStorage.getItem(PROFILE_KEY)) ?? mostRecentLegacy();
+  } catch {
+    return false;
+  }
+  if (!p) return false;
+  const touched = p.touchedAt ?? now; // profiles without a timestamp get one grace period
+  if (touched < now - days * 24 * 60 * 60 * 1000) {
+    clearProfile();
+    return true;
+  }
+  return false;
 }
 
 export function loadEmployer() {
@@ -68,21 +99,22 @@ export function saveEmployer(employer) {
 }
 
 export function wipeAll() {
-  localStorage.removeItem(PROFILES_KEY);
+  localStorage.removeItem(PROFILE_KEY);
+  localStorage.removeItem(LEGACY_PROFILES_KEY);
   localStorage.removeItem(EMPLOYER_KEY);
 }
 
 export function exportAll() {
   return JSON.stringify(
-    { exported: new Date().toISOString(), employer: loadEmployer(), profiles: loadProfiles() },
+    { exported: new Date().toISOString(), employer: loadEmployer(), profile: loadProfile() },
     null,
     2
   );
 }
 
 /**
- * Load public/seed.local.json (gitignored, same origin) into the employer
- * settings, but only when they are still empty, so a fresh browser profile
+ * Load public/seed.local.json (gitignored, same origin) into the standing
+ * details, but only when they are still empty, so a fresh browser profile
  * starts pre-filled without ever clobbering edits.
  */
 export async function applySeedIfEmpty() {
@@ -104,10 +136,18 @@ export async function applySeedIfEmpty() {
   }
 }
 
+/**
+ * Import a backup. Accepts the current single-profile shape ({profile}) and
+ * the legacy multi-profile shape ({profiles:[...]}, taking the most recent).
+ */
 export function importAll(json) {
   const data = JSON.parse(json);
-  if (!Array.isArray(data.profiles)) throw new Error("Not a valid export file");
-  saveProfiles(data.profiles);
+  let profile = null;
+  if (data.profile && typeof data.profile === "object") profile = data.profile;
+  else if (Array.isArray(data.profiles) && data.profiles.length)
+    profile = [...data.profiles].sort((a, b) => (b.touchedAt ?? 0) - (a.touchedAt ?? 0))[0];
+  if (!profile && !data.employer) throw new Error("Not a valid export file");
+  if (profile) saveProfile(profile);
   if (data.employer) saveEmployer(data.employer);
-  return data.profiles.length;
+  return profile ? 1 : 0;
 }

@@ -41,19 +41,12 @@ header.app h1 { font-size: 1.35rem; margin: 0; }
   padding: 0.1rem 0.6rem;
 }
 
-nav.tabs { display: flex; gap: 0.25rem; border-bottom: 2px solid var(--line); margin-bottom: 1rem; flex-wrap: wrap; }
-nav.tabs button {
-  border: none;
-  background: none;
-  font: inherit;
-  font-weight: 600;
-  color: var(--muted);
-  padding: 0.5rem 0.9rem;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-}
-nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+.settings-toggle { margin-left: auto; align-self: center; }
+button.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 0.35rem 0.7rem; }
+button.btn.ghost:hover { border-color: var(--line); color: var(--accent); }
+
+.stepintro { margin: 0.5rem 0 0.75rem; }
+.stepintro h2 { font-size: 1.05rem; margin: 0 0 0.2rem; }
 
 .card {
   background: var(--card);
@@ -98,12 +91,7 @@ button.btn.danger { color: var(--bad); }
 button.btn.danger:hover { border-color: var(--bad); }
 .btnrow { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
 
-ul.people { list-style: none; padding: 0; margin: 0; }
-ul.people li { display: flex; align-items: center; gap: 0.75rem; padding: 0.45rem 0.25rem; border-bottom: 1px solid var(--line); }
-ul.people li:last-child { border-bottom: none; }
-ul.people .name { font-weight: 600; cursor: pointer; }
-ul.people .name:hover { color: var(--accent); }
-ul.people .meta { color: var(--muted); font-size: 0.85rem; flex: 1; }
+label.field input:disabled, label.field select:disabled { background: #eef1f4; color: var(--muted); cursor: not-allowed; }
 
 .scanrow { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .scanbtn {

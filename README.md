@@ -25,17 +25,19 @@ That installs dependencies on first run (including the offline OCR/barcode
 assets, ~20 MB), starts the local server, and opens the app at
 http://127.0.0.1:5180. Plain npm works too (`npm install`, `npm run dev`).
 
-Then, in the app:
+The app is a single page that handles one person at a time:
 
-1. **Employer & Member tab**: enter the Member and employer of record once;
-   they are reused for every hire.
-2. **Employees tab**: add the new attendant. Photograph the **back** of their
-   driver's license (the barcode) and let the app fill in their details, or
-   type them in. Set their standard hourly rate (it varies per attendant;
-   the emergency rate defaults to $45). Review everything.
-3. **Generate forms tab**: pick the employee, set the dates, click Generate.
-   Filled PDFs land in your Downloads folder.
-4. Print, review every page, sign and date by hand, submit to PPL.
+1. **One-time, under ⚙ Your details**: enter the Member and employer of record;
+   they are reused on every packet.
+2. **Step 1 — upload documents**: photograph the **back** of the attendant's
+   driver's license (the barcode) and their Social Security card; the app
+   fills in their details. (Or type them in.)
+3. **Step 2 — complete their information**: fill what the scans can't know,
+   such as banking and the standard hourly rate (the emergency rate defaults
+   to $45). Review everything.
+4. **Step 3 — generate**: set the dates, click Generate. Filled PDFs land in
+   your Downloads folder.
+5. Print, review every page, sign and date by hand, submit to PPL.
 
 The full walkthrough, including scanning tips and what each form needs, is in
 [docs/usage.md](docs/usage.md).
@@ -74,19 +76,19 @@ review them.
   are vendored to disk by `npm install`. A Content-Security-Policy header
   blocks outbound connections as a second layer of enforcement.
 - **ID photos are never stored.** They are decoded in memory and discarded.
-- **Profiles stay on this machine**, in browser localStorage, unencrypted.
-  Two cleanup layers keep SSNs from lingering: after each generation the app
-  **offers to clear that employee's sensitive fields** immediately, and
-  whole profiles **auto-clear after a retention period** (30 days since last
-  edit by default; configurable in the Privacy & data tab). Employer
-  settings survive and re-seed automatically. Treat generated PDFs in
-  Downloads like any document with an SSN on it.
-- The **Privacy & data tab** has export (JSON backup), import, and
-  wipe-everything buttons.
+- **The person's data stays on this machine**, in browser localStorage,
+  unencrypted. Two cleanup layers keep SSNs from lingering: after each
+  generation the app **offers to clear sensitive fields** immediately, and the
+  saved person **auto-clears after a retention period** (30 days since last
+  edit by default; configurable under ⚙ Your details). Your standing details
+  survive and re-seed automatically. Treat generated PDFs in Downloads like
+  any document with an SSN on it.
+- **⚙ Your details** has export (JSON backup), import, and wipe-everything
+  buttons alongside the Member/employer fields.
 - **Optional seed file.** If a gitignored `public/seed.local.json` exists
-  (shape: `{"employer": { ...employer settings... }}`), the app loads it into
-  the Employer & rates tab the first time it runs in a browser profile. It
-  never overwrites existing settings and must never be committed.
+  (shape: `{"employer": { ...standing details... }}`), the app loads it into
+  Your details the first time it runs in a browser profile. It never
+  overwrites existing settings and must never be committed.
 
 ## Documentation
 

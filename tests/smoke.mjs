@@ -3,7 +3,11 @@
 // Run: node tests/smoke.mjs
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { PDFDocument } from "pdf-lib";
+
+// blankProfile() uses crypto.randomUUID; provide it on older Node globals.
+if (!globalThis.crypto) globalThis.crypto = { randomUUID };
 import { fillPacket2026 } from "../src/fill/packet2026.js";
 import { fillI9Standalone } from "../src/fill/i9.js";
 import { fillW4 } from "../src/fill/w4.js";
@@ -150,7 +154,7 @@ expect("2026 live-in packet filled and saved", p26li.length > 100000, String(p26
   expect("scrub reports cleared keys", cleared.includes("ssn") && cleared.includes("account"), cleared.join(","));
 }
 
-// ---- Retention purge (localStorage stubbed for Node) ----
+// ---- Single-profile store: retention + legacy migration (localStorage stubbed) ----
 {
   const m = new Map();
   globalThis.localStorage = {
@@ -161,19 +165,25 @@ expect("2026 live-in packet filled and saved", p26li.length > 100000, String(p26
   const store = await import("../src/store.js");
   const now = Date.now();
   const day = 24 * 60 * 60 * 1000;
-  store.saveProfiles([
-    { id: "fresh", first: "A", touchedAt: now - 1 * day },
-    { id: "stale", first: "B", touchedAt: now - 40 * day },
-    { id: "unstamped", first: "C" },
-  ]);
-  const purged = store.purgeStaleProfiles(now);
-  const left = store.loadProfiles().map((p) => p.id).sort();
-  expect("retention purges stale profile", purged === 1, String(purged));
-  expect(
-    "retention keeps fresh + stamps legacy",
-    left.join(",") === "fresh,unstamped",
-    left.join(",")
+
+  // A fresh profile is kept.
+  m.set("cdass.profile.v1", JSON.stringify({ first: "A", touchedAt: now - 1 * day }));
+  expect("retention keeps a fresh profile", store.purgeStaleProfile(now) === false && store.loadProfile().first === "A", "fresh");
+
+  // A stale profile is cleared.
+  m.set("cdass.profile.v1", JSON.stringify({ first: "B", touchedAt: now - 40 * day }));
+  expect("retention clears a stale profile", store.purgeStaleProfile(now) === true && store.loadProfile().first === "", "stale");
+
+  // The old multi-profile array migrates to the most recently touched person.
+  m.clear();
+  m.set(
+    "cdass.profiles.v1",
+    JSON.stringify([
+      { first: "Older", touchedAt: now - 10 * day },
+      { first: "Newer", touchedAt: now - 1 * day },
+    ])
   );
+  expect("legacy array migrates to most-recent person", store.loadProfile().first === "Newer", store.loadProfile().first);
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nAll smoke tests passed.");

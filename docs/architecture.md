@@ -45,9 +45,9 @@ assumption changes.
                           |
                  src/store.js (localStorage)
                           |
-            Generate tab (src/main.js)
+            generate step (src/main.js)
                           |
-        src/fill/packet2026.js | packet2025.js | w4.js
+            src/fill/packet2026.js | w4.js
               (shared I-9 section: src/fill/i9.js)
                           |
               pdf-lib fills template from public/forms/
@@ -59,8 +59,8 @@ assumption changes.
 
 ```
 index.html               Shell + CSP header
-src/main.js              All UI: tabs, schema-driven form rendering, scan
-                         handling, generate + download, privacy tab
+src/main.js              All UI: single-page scan -> review -> generate flow,
+                         schema-driven form rendering, the Your details panel
 src/style.css            Styling (plain CSS, no framework)
 src/schema.js            Single source of truth for profile/employer fields;
                          both the UI and the fill mappings key off it
@@ -74,8 +74,7 @@ src/extract/ssncard.js   SSN + name out of OCR text
 src/fill/util.js         Tolerant pdf-lib helpers (missing field = console
                          warning, not a crash), date/SSN formatting
 src/fill/packet2026.js   Mapping for the current PPL packet
-src/fill/packet2025.js   Mapping for the previous packet
-src/fill/i9.js           I-9 Section 1 + 2 (identical fields in both packets)
+src/fill/i9.js           I-9 Section 1 + 2 (shared by the packet and standalone)
 src/fill/w4.js           W-4 with 2020-2023 vs 2024+ layout detection
 scripts/setup-assets.mjs Vendors WASM/OCR assets at install time
 tests/smoke.mjs          Parser unit tests + fills every form with sample data

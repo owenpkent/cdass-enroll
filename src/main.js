@@ -12,22 +12,22 @@ import { fillI9Standalone } from "./fill/i9.js";
 import { fillW4 } from "./fill/w4.js";
 import { todayIso } from "./fill/util.js";
 
+// This is a one-at-a-time tool: a single person's profile, plus the standing
+// "your details" (member + employer of record) that get reused on every packet.
 const state = {
-  tab: "employees",
-  profiles: store.loadProfiles(),
+  profile: store.loadProfile(),
   employer: store.loadEmployer(),
-  editingId: null,
   genOptions: { signatureDate: todayIso(), firstDay: "", rateEffectiveDate: "", newService: true },
+  showSettings: false,
 };
 
-// Retention: clear employee profiles untouched for longer than the setting.
-const purged = store.purgeStaleProfiles();
-if (purged) {
-  state.profiles = store.loadProfiles();
-  state.purgedNote = `${purged} employee profile${purged === 1 ? "" : "s"} auto-cleared (older than the retention period set in Privacy & data).`;
+// Retention backstop: clear the saved person if untouched longer than the setting.
+if (store.purgeStaleProfile()) {
+  state.profile = store.loadProfile();
+  state.purgedNote = "The previously saved person was auto-cleared (older than the retention period set in Your details).";
 }
 
-// Pre-fill employer settings from seed.local.json on a fresh browser profile.
+// Pre-fill the standing details from seed.local.json on a fresh browser profile.
 store.applySeedIfEmpty().then((applied) => {
   if (applied) {
     state.employer = store.loadEmployer();
@@ -130,7 +130,7 @@ function renderSections(sections, obj, onChange) {
   return wrap;
 }
 
-// Push updated values from obj back into rendered inputs (after a scan).
+// Push updated values from obj back into rendered inputs (after a scan/scrub).
 function refreshInputs(container, obj, changedKeys) {
   for (const el of container.querySelectorAll("[data-key]")) {
     const k = el.dataset.key;
@@ -143,166 +143,67 @@ function refreshInputs(container, obj, changedKeys) {
   }
 }
 
-// ---------- persistence ----------
-function saveProfile(profile) {
-  profile.touchedAt = Date.now();
-  const i = state.profiles.findIndex((p) => p.id === profile.id);
-  if (i >= 0) state.profiles[i] = profile;
-  else state.profiles.push(profile);
-  store.saveProfiles(state.profiles);
-}
-
-// ---------- tabs ----------
-const TABS = [
-  ["employees", "Employees"],
-  ["employer", "Employer & Member"],
-  ["generate", "Generate forms"],
-  ["privacy", "Privacy & data"],
-];
-
+// ---------- shell ----------
 function render() {
   app.replaceChildren(
     h(
       "header",
       { class: "app" },
       h("h1", {}, "CDASS Enroll"),
-      h("span", { class: "badge" }, "100% local - nothing leaves this computer")
-    ),
-    h(
-      "nav",
-      { class: "tabs" },
-      ...TABS.map(([id, label]) =>
-        h(
-          "button",
-          {
-            class: state.tab === id ? "active" : "",
-            onclick: () => {
-              state.tab = id;
-              render();
-            },
+      h("span", { class: "badge" }, "100% local - nothing leaves this computer"),
+      h(
+        "button",
+        {
+          class: "btn ghost settings-toggle",
+          onclick: () => {
+            state.showSettings = !state.showSettings;
+            render();
           },
-          label
-        )
+        },
+        state.showSettings ? "← Back to enrollment" : "⚙ Your details"
       )
     ),
-    { employees: renderEmployees, employer: renderEmployerTab, generate: renderGenerate, privacy: renderPrivacy }[
-      state.tab
-    ]()
+    state.showSettings ? renderSettings() : renderMain()
   );
 }
 
-// ---------- Employees tab ----------
-function renderEmployees() {
+// ---------- main flow: scan -> review -> generate ----------
+function renderMain() {
   const wrap = h("div");
+  const save = () => store.saveProfile(state.profile);
+  const formArea = renderSections(PROFILE_SECTIONS, state.profile, save);
 
-  if (state.editingId) {
-    const profile = state.profiles.find((p) => p.id === state.editingId);
-    if (profile) return renderEditor(profile);
-    state.editingId = null;
-  }
-
-  if (state.purgedNote) wrap.append(h("p", { class: "note" }, state.purgedNote));
-
-  const list = h("ul", { class: "people" });
-  if (state.profiles.length === 0) {
-    list.append(h("li", {}, h("span", { class: "meta" }, "No employees yet. Add one to get started.")));
-  }
-  for (const p of state.profiles) {
-    list.append(
-      h(
-        "li",
-        {},
-        h(
-          "span",
-          {
-            class: "name",
-            onclick: () => {
-              state.editingId = p.id;
-              render();
-            },
-          },
-          displayName(p)
-        ),
-        h("span", { class: "meta" }, [p.city, p.state].filter(Boolean).join(", ")),
-        h(
-          "button",
-          {
-            class: "btn danger",
-            onclick: () => {
-              if (!confirm(`Delete ${displayName(p)} and all their data?`)) return;
-              state.profiles = state.profiles.filter((x) => x.id !== p.id);
-              store.saveProfiles(state.profiles);
-              render();
-            },
-          },
-          "Delete"
-        )
-      )
-    );
-  }
-
-  wrap.append(
-    h(
-      "div",
-      { class: "card" },
-      h("h2", {}, "Employees"),
-      list,
-      h(
-        "div",
-        { class: "btnrow" },
-        h(
-          "button",
-          {
-            class: "btn primary",
-            onclick: () => {
-              const p = blankProfile();
-              saveProfile(p);
-              state.editingId = p.id;
-              render();
-            },
-          },
-          "+ Add employee"
-        )
-      )
-    )
-  );
-  return wrap;
-}
-
-function renderEditor(profile) {
-  const wrap = h("div");
-  const status = h("div", { class: "status" });
-
-  const setStatus = (cls, msg) => {
-    status.className = "status " + cls;
-    status.textContent = msg;
+  // ----- Step 1: scan -----
+  const scanStatus = h("div", { class: "status" });
+  const setScanStatus = (cls, msg) => {
+    scanStatus.className = "status " + cls;
+    scanStatus.textContent = msg;
   };
 
-  const formArea = renderSections(PROFILE_SECTIONS, profile, () => saveProfile(profile));
-
   async function handleScan(file, scanFn, label) {
-    setStatus("busy", `Reading ${label} locally... (first OCR run takes a few seconds)`);
+    setScanStatus("busy", `Reading ${label} locally... (first OCR run takes a few seconds)`);
     try {
       const { fields, source } = await scanFn(file);
       const changed = new Set();
       for (const [k, v] of Object.entries(fields)) {
         if (k.endsWith("Unverified")) continue;
-        if (profile[k] !== v) {
-          profile[k] = v;
+        if (state.profile[k] !== v) {
+          state.profile[k] = v;
           changed.add(k);
         }
       }
-      saveProfile(profile);
-      refreshInputs(formArea, profile, changed);
+      save();
+      refreshInputs(formArea, state.profile, changed);
+      formArea.dispatchEvent(new CustomEvent("resync"));
       const warn = fields.passportNumberUnverified
         ? ` Passport number "${fields.passportNumberUnverified}" failed its check digit; verify it manually.`
         : "";
-      setStatus(
+      setScanStatus(
         "ok",
-        `${source}: filled ${changed.size} field${changed.size === 1 ? "" : "s"} (${[...changed].join(", ") || "none new"}). Review before generating.${warn}`
+        `${source}: filled ${changed.size} field${changed.size === 1 ? "" : "s"} (${[...changed].join(", ") || "none new"}). Review below before generating.${warn}`
       );
     } catch (e) {
-      setStatus("err", e.message);
+      setScanStatus("err", e.message);
     }
   }
 
@@ -326,110 +227,14 @@ function renderEditor(profile) {
     );
   };
 
-  wrap.append(
-    h(
-      "div",
-      { class: "card" },
-      h("h2", {}, "Scan documents (processed on this computer only)"),
-      h(
-        "div",
-        { class: "scanrow" },
-        scanButton("Driver's license", "Photo of the BACK (the barcode)", scanLicense),
-        scanButton("Passport", "Photo page, straight on", scanPassport),
-        scanButton("Social Security card", "Front, well lit", scanSsnCard)
-      ),
-      status,
-      h(
-        "p",
-        { class: "note" },
-        "Images are decoded in this browser and are not stored. Extracted values are highlighted below; always double-check them."
-      )
-    ),
-    formArea,
-    h(
-      "div",
-      { class: "btnrow" },
-      h(
-        "button",
-        {
-          class: "btn primary",
-          onclick: () => {
-            state.editingId = null;
-            render();
-          },
-        },
-        "Done"
-      ),
-      h(
-        "button",
-        {
-          class: "btn",
-          onclick: () => {
-            state.tab = "generate";
-            state.genOptions.profileId = profile.id;
-            render();
-          },
-        },
-        "Go to Generate →"
-      )
-    )
-  );
-
-  return h(
-    "div",
-    {},
-    h(
-      "div",
-      { class: "btnrow", style: "margin: 0 0 0.75rem" },
-      h(
-        "button",
-        {
-          class: "btn",
-          onclick: () => {
-            state.editingId = null;
-            render();
-          },
-        },
-        "← All employees"
-      ),
-      h("strong", { style: "align-self:center" }, displayName(profile))
-    ),
-    wrap
-  );
-}
-
-// ---------- Employer tab ----------
-function renderEmployerTab() {
-  const wrap = h("div");
-  wrap.append(
-    h(
-      "p",
-      { class: "note" },
-      "Entered once, used on every packet: the Member receiving care and the employer of record. Pay rates are set per employee in their profile."
-    ),
-    renderSections(EMPLOYER_SECTIONS, state.employer, () => store.saveEmployer(state.employer))
-  );
-  return wrap;
-}
-
-// ---------- Generate tab ----------
-function renderGenerate() {
-  const wrap = h("div");
+  // ----- Step 3: generate -----
   const opts = state.genOptions;
-  const status = h("div", { class: "status" });
+  const genStatus = h("div", { class: "status" });
   const afterGen = h("div");
-
-  if (!opts.profileId && state.profiles.length) opts.profileId = state.profiles[0].id;
-
-  const profileSel = h(
-    "select",
-    { onchange: (e) => (opts.profileId = e.target.value) },
-    ...state.profiles.map((p) => {
-      const o = h("option", { value: p.id }, displayName(p));
-      o.selected = opts.profileId === p.id;
-      return o;
-    })
-  );
+  const setGenStatus = (cls, msg) => {
+    genStatus.className = "status " + cls;
+    genStatus.textContent = msg;
+  };
 
   const dateField = (label, key) => {
     const inp = h("input", { type: "date", value: opts[key] ?? "", oninput: (e) => (opts[key] = e.target.value) });
@@ -446,13 +251,11 @@ function renderGenerate() {
   newServiceCb.checked = opts.newService;
 
   async function generate() {
-    const profile = state.profiles.find((p) => p.id === opts.profileId);
-    if (!profile) return setStatus("err", "Pick an employee first.");
-    if (!packetCb.checked && !w4Cb.checked && !i9Cb.checked)
-      return setStatus("err", "Select at least one form.");
-    setStatus("busy", "Filling forms locally...");
+    const profile = state.profile;
+    if (!packetCb.checked && !w4Cb.checked && !i9Cb.checked) return setGenStatus("err", "Select at least one form.");
+    setGenStatus("busy", "Filling forms locally...");
     try {
-      const stem = `${profile.last || "employee"}-${profile.first || ""}`.replace(/[^\w-]+/g, "");
+      const stem = `${profile.last || "attendant"}-${profile.first || ""}`.replace(/[^\w-]+/g, "");
       if (packetCb.checked) {
         const bytes = await fetchTemplate("forms/CO-CDASS-Attendant-Packet-2026.pdf");
         download(await fillPacket2026(bytes, profile, state.employer, opts), `${stem}-CDASS-packet-2026.pdf`);
@@ -465,17 +268,16 @@ function renderGenerate() {
         const bytes = await fetchTemplate("forms/i9.pdf");
         download(await fillI9Standalone(bytes, profile, state.employer, opts), `${stem}-I9.pdf`);
       }
-      setStatus("ok", "Done. Files are in your Downloads folder. Review every page, then sign and date by hand where required.");
-      offerScrub(profile);
+      setGenStatus("ok", "Done. Files are in your Downloads folder. Review every page, then sign and date by hand where required.");
+      offerScrub();
     } catch (e) {
       console.error(e);
-      setStatus("err", "Failed: " + e.message);
+      setGenStatus("err", "Failed: " + e.message);
     }
   }
 
-  // After a successful generation, offer to clear the employee's sensitive
-  // data right away (the retention timer remains as a backstop).
-  function offerScrub(profile) {
+  // After generating, offer to clear sensitive data right away.
+  function offerScrub() {
     afterGen.replaceChildren(
       h(
         "div",
@@ -483,8 +285,8 @@ function renderGenerate() {
         h(
           "p",
           { style: "margin-top:0" },
-          `Clear ${displayName(profile)}'s sensitive data from this computer now? `,
-          "This blanks the SSN, date of birth, bank details, and ID document numbers in their profile. ",
+          `Clear ${displayName(state.profile)}'s sensitive data from this computer now? `,
+          "This blanks the SSN, date of birth, bank details, and ID document numbers. ",
           "Name, contact, and rates are kept. Do this once the printed forms are signed and you won't need to regenerate."
         ),
         h(
@@ -495,8 +297,9 @@ function renderGenerate() {
             {
               class: "btn primary",
               onclick: () => {
-                const cleared = scrubSensitive(profile);
-                saveProfile(profile);
+                const cleared = scrubSensitive(state.profile);
+                save();
+                refreshInputs(formArea, state.profile);
                 afterGen.replaceChildren(
                   h("p", { class: "status ok" }, `Cleared ${cleared.length} sensitive field${cleared.length === 1 ? "" : "s"}.`)
                 );
@@ -508,15 +311,10 @@ function renderGenerate() {
             "button",
             {
               class: "btn",
-              onclick: () => {
+              onclick: () =>
                 afterGen.replaceChildren(
-                  h(
-                    "p",
-                    { class: "note" },
-                    "Kept. It will still auto-clear after the retention period (see Privacy & data), or clear it later from this tab by regenerating."
-                  )
-                );
-              },
+                  h("p", { class: "note" }, 'Kept. It will still auto-clear after the retention period (see "Your details"), or use "Start over" below.')
+                ),
             },
             "Keep for now"
           )
@@ -525,20 +323,46 @@ function renderGenerate() {
     );
   }
 
-  const setStatus = (cls, msg) => {
-    status.className = "status " + cls;
-    status.textContent = msg;
-  };
+  // ----- assemble the page -----
+  if (state.purgedNote) wrap.append(h("p", { class: "note" }, state.purgedNote));
 
   wrap.append(
     h(
       "div",
       { class: "card" },
-      h("h2", {}, "Generate filled forms"),
+      h("h2", {}, "Step 1 — Upload identification documents"),
+      h(
+        "div",
+        { class: "scanrow" },
+        scanButton("Driver's license", "Photo of the BACK (the barcode)", scanLicense),
+        scanButton("Passport", "Photo page, straight on", scanPassport),
+        scanButton("Social Security card", "Front, well lit", scanSsnCard)
+      ),
+      scanStatus,
+      h(
+        "p",
+        { class: "note" },
+        "Images are decoded in this browser and never stored. Extracted values flash yellow below; always double-check them against the document."
+      )
+    ),
+    h(
+      "div",
+      { class: "stepintro" },
+      h("h2", {}, "Step 2 — Their information"),
+      h(
+        "p",
+        { class: "note" },
+        "Auto-filled from the scans and from your saved details. Fill in anything the scans can't know (such as banking) and correct any misreads."
+      )
+    ),
+    formArea,
+    h(
+      "div",
+      { class: "card" },
+      h("h2", {}, "Step 3 — Generate the PDF"),
       h(
         "div",
         { class: "grid" },
-        h("label", { class: "field" }, "Employee", profileSel),
         dateField("Signature date (printed on each form)", "signatureDate"),
         dateField("First day of employment (I-9 / W-4)", "firstDay"),
         dateField("Rate effective date", "rateEffectiveDate")
@@ -549,35 +373,53 @@ function renderGenerate() {
       h("label", { class: "check" }, i9Cb, "Standalone USCIS I-9 (the packet already includes one; only if PPL asks for it separately)"),
       h("label", { class: "check" }, newServiceCb, "Rate form: this is a new service (uncheck for an hourly-rate change)"),
       h("div", { class: "btnrow" }, h("button", { class: "btn primary", onclick: generate }, "Generate & download")),
-      status,
+      genStatus,
       afterGen,
       h(
         "p",
         { class: "note" },
-        "Signatures are never auto-filled. The packet's rehire page (Supplement B) shares a field with I-9 List A in the original PDF, so if a passport was used, ignore the mirrored title on that page."
+        "Signatures are never auto-filled. The output is an exact, editable copy of the packet, so you can adjust any field in your PDF reader before printing. The packet's rehire page (Supplement B) shares a field with I-9 List A in the original PDF, so if a passport was used, ignore the mirrored title on that page."
+      )
+    ),
+    h(
+      "div",
+      { class: "btnrow" },
+      h(
+        "button",
+        {
+          class: "btn danger",
+          onclick: () => {
+            if (!confirm("Clear this person's information and start a new one? This removes their data from this browser.")) return;
+            store.clearProfile();
+            state.profile = blankProfile();
+            store.saveProfile(state.profile);
+            state.purgedNote = null;
+            render();
+          },
+        },
+        "Start over (new person)"
       )
     )
   );
   return wrap;
 }
 
-async function fetchTemplate(path) {
-  const res = await fetch(new URL(path, document.baseURI));
-  if (!res.ok) throw new Error(`Could not load template ${path} (HTTP ${res.status})`);
-  return res.arrayBuffer();
+// ---------- settings: your details + privacy ----------
+function renderSettings() {
+  const wrap = h("div");
+  wrap.append(
+    h(
+      "p",
+      { class: "note" },
+      "Your standing details, entered once and reused on every packet: the Member receiving care and the employer of record. These auto-fill from your saved file when present."
+    ),
+    renderSections(EMPLOYER_SECTIONS, state.employer, () => store.saveEmployer(state.employer)),
+    renderPrivacyCard()
+  );
+  return wrap;
 }
 
-function download(bytes, filename) {
-  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-  const a = h("a", { href: url, download: filename });
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
-
-// ---------- Privacy tab ----------
-function renderPrivacy() {
+function renderPrivacyCard() {
   const fileInput = h("input", {
     type: "file",
     accept: ".json,application/json",
@@ -586,10 +428,10 @@ function renderPrivacy() {
       const f = e.target.files[0];
       if (!f) return;
       try {
-        const n = store.importAll(await f.text());
-        state.profiles = store.loadProfiles();
+        store.importAll(await f.text());
+        state.profile = store.loadProfile();
         state.employer = store.loadEmployer();
-        alert(`Imported ${n} employee profile(s).`);
+        alert("Backup imported.");
         render();
       } catch (err) {
         alert("Import failed: " + err.message);
@@ -602,10 +444,10 @@ function renderPrivacy() {
     {
       onchange: (e) => {
         store.setRetention(e.target.value);
-        const purged = store.purgeStaleProfiles();
-        if (purged) {
-          state.profiles = store.loadProfiles();
-          alert(`${purged} profile(s) older than the new retention period were cleared.`);
+        if (store.purgeStaleProfile()) {
+          state.profile = store.loadProfile();
+          alert("The saved person was older than the new retention period and was cleared.");
+          render();
         }
       },
     },
@@ -628,14 +470,9 @@ function renderPrivacy() {
     h(
       "p",
       {},
-      "Employee profiles (including SSNs) are stored in this browser's local storage on this machine, unencrypted. To limit how long they sit there, profiles are automatically cleared after the retention period below (employer settings are kept and re-seed automatically). Generated PDFs go to your Downloads folder; store and dispose of them like any document containing an SSN."
+      "The person's information (including their SSN) is stored in this browser's local storage on this machine, unencrypted. To limit how long it sits there, it is automatically cleared after the retention period below (your standing details are kept and re-seed automatically). Generated PDFs go to your Downloads folder; store and dispose of them like any document containing an SSN."
     ),
-    h(
-      "label",
-      { class: "field", style: "max-width: 320px" },
-      "Auto-clear employee profiles after",
-      retentionSel
-    ),
+    h("label", { class: "field", style: "max-width: 320px" }, "Auto-clear the saved person after", retentionSel),
     h("hr", { class: "soft" }),
     h(
       "div",
@@ -650,7 +487,7 @@ function renderPrivacy() {
             a.click();
           },
         },
-        "Export all data (JSON)"
+        "Export data (JSON)"
       ),
       h("button", { class: "btn", onclick: () => fileInput.click() }, "Import backup"),
       h(
@@ -658,9 +495,9 @@ function renderPrivacy() {
         {
           class: "btn danger",
           onclick: () => {
-            if (!confirm("Permanently delete ALL employee profiles and employer settings from this browser?")) return;
+            if (!confirm("Permanently delete the saved person and your standing details from this browser?")) return;
             store.wipeAll();
-            state.profiles = [];
+            state.profile = blankProfile();
             state.employer = store.loadEmployer();
             render();
           },
@@ -670,6 +507,21 @@ function renderPrivacy() {
       fileInput
     )
   );
+}
+
+async function fetchTemplate(path) {
+  const res = await fetch(new URL(path, document.baseURI));
+  if (!res.ok) throw new Error(`Could not load template ${path} (HTTP ${res.status})`);
+  return res.arrayBuffer();
+}
+
+function download(bytes, filename) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  const a = h("a", { href: url, download: filename });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 render();
