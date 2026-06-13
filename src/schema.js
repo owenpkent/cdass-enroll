@@ -160,12 +160,10 @@ export const PROFILE_SECTIONS = [
   },
   {
     id: "rates",
-    title: "Pay rates ($/hour, for this attendant)",
+    title: "Pay rates (CDASS, $/hour)",
     fields: [
-      { key: "rateStandardCdass", label: "CDASS standard rate", type: "money", placeholder: "e.g. 18" },
-      { key: "rateEmergencyCdass", label: "CDASS emergency rate", type: "money" },
-      { key: "rateStandardHm", label: "Health maintenance standard rate", type: "money" },
-      { key: "rateEmergencyHm", label: "Health maintenance emergency rate", type: "money" },
+      { key: "rateStandardCdass", label: "Standard rate (per attendant)", type: "money", placeholder: "e.g. 18" },
+      { key: "rateEmergencyCdass", label: "Emergency rate", type: "money", default: "45", placeholder: "45" },
     ],
   },
   {
@@ -254,7 +252,7 @@ export const EMPLOYER_SECTIONS = [
 export function blankProfile() {
   const p = { id: crypto.randomUUID() };
   for (const s of PROFILE_SECTIONS)
-    for (const f of s.fields) p[f.key] = f.type === "checkbox" ? (f.default ?? false) : "";
+    for (const f of s.fields) p[f.key] = f.type === "checkbox" ? (f.default ?? false) : (f.default ?? "");
   return p;
 }
 

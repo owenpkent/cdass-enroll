@@ -111,8 +111,8 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
   check(form, "Change Hourly Rate: only mark if the attendant is already working", !opts.newService);
   setText(form, "CDASS Standard Rate", p.rateStandardCdass);
   setText(form, "CDASS Emergency Rate", p.rateEmergencyCdass);
-  setText(form, "SLS Health Maintenance Standard Rate", p.rateStandardHm);
-  setText(form, "SLS Health Maintenance Emergency Rate", p.rateEmergencyHm);
+  // SLS Health Maintenance rate boxes are intentionally left blank: this app
+  // only enrolls CDASS attendants. Fill them by hand if HM service is added.
   setText(form, "Attendant Signature Date", sig);
   setText(form, "Employer Signature Date", sig);
 

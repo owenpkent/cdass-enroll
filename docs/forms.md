@@ -18,7 +18,7 @@ What gets filled:
 | --- | --- | --- |
 | 2-7 | Attendant Enrollment and Agreement | name, DOB, SSN, addresses, contact, relationship to Member, printed names, signature dates |
 | 8-9 | Direct Deposit | bank info as one digit per box; paper-check address block when direct deposit is off |
-| 10 | Services and Rates | new-service vs rate-change, CDASS + SLS Health Maintenance rates, signature dates |
+| 10 | Services and Rates | new-service vs rate-change, CDASS standard + emergency rate (HM rate boxes left blank), signature dates |
 | 11 | Tax Exemptions | relation-to-employer and age-gated attestations |
 | 13-15 | EVV Attestation of Exemption | only when the profile marks the attendant as live-in |
 | 19-22 | USCIS I-9 | Section 1 + Section 2 documents (via `src/fill/i9.js`) |

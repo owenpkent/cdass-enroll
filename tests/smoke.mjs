@@ -73,8 +73,7 @@ const profile = {
   dlNumber: "123456789", dlState: "CO", dlExpiration: "2030-09-30",
   passportNumber: "", passportExpiration: "",
   filingStatus: "single", multipleJobs: true,
-  rateStandardCdass: "20.00", rateEmergencyCdass: "25.00",
-  rateStandardHm: "22.00", rateEmergencyHm: "27.00",
+  rateStandardCdass: "20.00", rateEmergencyCdass: "45",
   childrenCredit: "2000", otherDependentsCredit: "500",
   otherIncome: "", deductions: "", extraWithholding: "50",
 };

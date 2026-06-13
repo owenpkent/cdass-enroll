@@ -67,9 +67,10 @@ Work down the sections. Things the scans cannot know:
 - **Work details**: relationship to the Member, the living situation (this
   drives the EVV exemption pages), and the relation-to-employer question
   (this drives the tax exemption attestations).
-- **Pay rates**: this attendant's hourly rates for the Services and Rates
-  form (rates are person-specific; for reference, past hires were $15 in
-  2021 and $18 in late 2024).
+- **Pay rates**: the CDASS standard rate is per attendant (for reference,
+  past hires were $15 in 2021 and $18 in late 2024). The emergency rate is
+  pre-filled at $45; change it only if a specific attendant differs. Health
+  Maintenance rate boxes on the form are left blank.
 - **I-9 work authorization**: citizenship status; extra numbers only if they
   are a permanent resident or visa holder.
 - **W-4 withholding**: filing status and any Step 2-4 amounts. When in doubt

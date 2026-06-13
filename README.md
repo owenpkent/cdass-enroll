@@ -31,8 +31,8 @@ Then, in the app:
    they are reused for every hire.
 2. **Employees tab**: add the new attendant. Photograph the **back** of their
    driver's license (the barcode) and let the app fill in their details, or
-   type them in. Set their hourly rates (rates are per attendant). Review
-   everything.
+   type them in. Set their standard hourly rate (it varies per attendant;
+   the emergency rate defaults to $45). Review everything.
 3. **Generate forms tab**: pick the employee, set the dates, click Generate.
    Filled PDFs land in your Downloads folder.
 4. Print, review every page, sign and date by hand, submit to PPL.
