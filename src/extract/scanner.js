@@ -110,8 +110,10 @@ function canvasToBlob(canvas) {
  * Scan the BACK of a driver's license (the PDF417 barcode).
  * Returns {fields, source} or throws with a friendly message.
  */
-export async function scanLicense(imageFile) {
-  const read = async (input, binarizer) => {
+// Decode a PDF417 from any input zxing accepts (Blob/ImageData), trying two
+// binarizers (LocalAverage for uneven light, GlobalHistogram for even light).
+async function decodePdf417(input) {
+  for (const binarizer of ["LocalAverage", "GlobalHistogram"]) {
     const results = await readBarcodes(input, {
       formats: ["PDF417"],
       tryHarder: true,
@@ -120,32 +122,48 @@ export async function scanLicense(imageFile) {
       maxNumberOfSymbols: 1,
       binarizer,
     });
-    return results.find((r) => r.isValid && r.text);
-  };
-
-  // Try the original and an upscaled, high-contrast version, each with two
-  // binarizers (LocalAverage handles uneven light, GlobalHistogram handles
-  // clean even light). zxing is fast, so this wide net is cheap.
-  const enhanced = await enhanceCanvas(imageFile, { target: 2600, upscaleOnly: true }).catch(() => null);
-  const enhancedBlob = enhanced ? await canvasToBlob(enhanced) : null;
-  const inputs = [imageFile, enhancedBlob].filter(Boolean);
-
-  let hit = null;
-  for (const binarizer of ["LocalAverage", "GlobalHistogram"]) {
-    for (const input of inputs) {
-      hit = await read(input, binarizer);
-      if (hit) break;
-    }
-    if (hit) break;
+    const hit = results.find((r) => r.isValid && r.text);
+    if (hit) return hit;
   }
-  if (!hit) {
-    throw new Error(
-      "No PDF417 barcode found. Get closer so the barcode fills most of the frame, tap to focus until the bars are sharp, and avoid glare. If it still won't read, type the license details in by hand."
-    );
-  }
+  return null;
+}
+
+function licenseResult(hit) {
   const fields = parseAamva(hit.text);
   if (!fields) throw new Error("Barcode decoded but it does not look like license data.");
   return { fields, source: "Driver's license barcode" };
+}
+
+export async function scanLicense(imageFile) {
+  const enhanced = await enhanceCanvas(imageFile, { target: 2600, upscaleOnly: true }).catch(() => null);
+  const enhancedBlob = enhanced ? await canvasToBlob(enhanced) : null;
+  for (const input of [imageFile, enhancedBlob].filter(Boolean)) {
+    const hit = await decodePdf417(input);
+    if (hit) return licenseResult(hit);
+  }
+  throw new Error(
+    "No PDF417 barcode found. Get closer so the barcode fills the frame, tap to focus until the bars are sharp, and avoid glare. Or draw a box around the barcode below, or type the license details in by hand."
+  );
+}
+
+// Decode the barcode from a user-selected region (the cropper). `source` is an
+// image the canvas can draw (an ImageBitmap); sx/sy/sw/sh are the crop rect in
+// source pixels. The crop is upscaled and contrast-stretched so the dense bars
+// get enough pixels to decode, which rescues a barcode that was small in frame.
+export async function readLicenseRegion(source, sx, sy, sw, sh) {
+  const scale = Math.min(4, Math.max(1, 1600 / sw));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sw * scale));
+  canvas.height = Math.max(1, Math.round(sh * scale));
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(source, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  grayContrast(img.data);
+  ctx.putImageData(img, 0, 0);
+  const blob = await canvasToBlob(canvas);
+  const hit = blob && (await decodePdf417(blob));
+  if (!hit) throw new Error("No barcode in the selected area. Draw the box tightly around just the striped barcode and try again.");
+  return licenseResult(hit);
 }
 
 /** Scan the photo page of a passport (reads the MRZ lines at the bottom). */

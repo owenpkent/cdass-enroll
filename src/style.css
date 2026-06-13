@@ -108,6 +108,17 @@ label.field input:disabled, label.field select:disabled { background: #eef1f4; c
 .scanbtn small { color: var(--muted); display: block; margin-top: 0.2rem; }
 .scanbtn input { display: none; }
 
+.croparea { margin-top: 0.6rem; }
+.cropcanvas {
+  display: block;
+  max-width: 100%;
+  margin-top: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
 .status { margin-top: 0.6rem; font-size: 0.9rem; min-height: 1.3em; }
 .status.ok { color: var(--good); }
 .status.err { color: var(--bad); }

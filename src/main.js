@@ -6,7 +6,7 @@ import {
   scrubSensitive,
 } from "./schema.js";
 import * as store from "./store.js";
-import { scanLicense, scanPassport, scanSsnCard } from "./extract/scanner.js";
+import { scanLicense, scanPassport, scanSsnCard, readLicenseRegion } from "./extract/scanner.js";
 import { fillPacket2026 } from "./fill/packet2026.js";
 import { fillI9Standalone } from "./fill/i9.js";
 import { fillW4 } from "./fill/w4.js";
@@ -175,26 +175,33 @@ function renderMain() {
 
   // ----- Step 1: scan -----
   const scanStatus = h("div", { class: "status" });
+  const cropArea = h("div", { class: "croparea" });
   const setScanStatus = (cls, msg) => {
     scanStatus.className = "status " + cls;
     scanStatus.textContent = msg;
   };
 
-  async function handleScan(file, scanFn, label) {
+  // Apply extracted fields to the profile, flash what changed, return the keys.
+  function applyScanFields(fields) {
+    const changed = new Set();
+    for (const [k, v] of Object.entries(fields)) {
+      if (k.endsWith("Unverified")) continue;
+      if (state.profile[k] !== v) {
+        state.profile[k] = v;
+        changed.add(k);
+      }
+    }
+    save();
+    refreshInputs(formArea, state.profile, changed);
+    formArea.dispatchEvent(new CustomEvent("resync"));
+    return changed;
+  }
+
+  async function handleScan(file, scanFn, label, onFail) {
     setScanStatus("busy", `Reading ${label} locally... (first OCR run takes a few seconds)`);
     try {
       const { fields, source } = await scanFn(file);
-      const changed = new Set();
-      for (const [k, v] of Object.entries(fields)) {
-        if (k.endsWith("Unverified")) continue;
-        if (state.profile[k] !== v) {
-          state.profile[k] = v;
-          changed.add(k);
-        }
-      }
-      save();
-      refreshInputs(formArea, state.profile, changed);
-      formArea.dispatchEvent(new CustomEvent("resync"));
+      const changed = applyScanFields(fields);
       const warn = fields.passportNumberUnverified
         ? ` Passport number "${fields.passportNumberUnverified}" failed its check digit; verify it manually.`
         : "";
@@ -202,18 +209,116 @@ function renderMain() {
         "ok",
         `${source}: filled ${changed.size} field${changed.size === 1 ? "" : "s"} (${[...changed].join(", ") || "none new"}). Review below before generating.${warn}`
       );
+      cropArea.replaceChildren();
     } catch (e) {
-      setScanStatus("err", e.message);
+      if (onFail) onFail(file, e);
+      else setScanStatus("err", e.message);
     }
   }
 
-  const scanButton = (label, hint, scanFn) => {
+  async function loadImage(file) {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch {
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Could not read the image file."));
+        img.src = URL.createObjectURL(file);
+      });
+    }
+  }
+
+  // When the license barcode won't auto-decode, show the photo and let the user
+  // box the barcode; that region is enlarged and decoded.
+  async function showCropper(file, err) {
+    setScanStatus("err", err.message);
+    let bitmap;
+    try {
+      bitmap = await loadImage(file);
+    } catch (e) {
+      return setScanStatus("err", e.message);
+    }
+    const dispScale = Math.min(1, 640 / bitmap.width);
+    const dw = Math.max(1, Math.round(bitmap.width * dispScale));
+    const dh = Math.max(1, Math.round(bitmap.height * dispScale));
+    const canvas = h("canvas", { class: "cropcanvas" });
+    canvas.width = dw;
+    canvas.height = dh;
+    const ctx = canvas.getContext("2d");
+    let sel = null;
+    let drag = null;
+    const redraw = () => {
+      ctx.drawImage(bitmap, 0, 0, dw, dh);
+      if (sel) {
+        ctx.strokeStyle = "#1f6feb";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
+      }
+    };
+    redraw();
+    const at = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) / r.width) * dw, y: ((e.clientY - r.top) / r.height) * dh };
+    };
+    canvas.addEventListener("pointerdown", (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      drag = at(e);
+      sel = { x: drag.x, y: drag.y, w: 0, h: 0 };
+      redraw();
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const p = at(e);
+      sel = { x: Math.min(drag.x, p.x), y: Math.min(drag.y, p.y), w: Math.abs(p.x - drag.x), h: Math.abs(p.y - drag.y) };
+      redraw();
+    });
+    const endDrag = () => (drag = null);
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", endDrag);
+
+    const readBtn = h(
+      "button",
+      {
+        class: "btn primary",
+        onclick: async () => {
+          const region = sel && sel.w > 8 && sel.h > 8 ? sel : { x: 0, y: 0, w: dw, h: dh };
+          const inv = 1 / dispScale;
+          setScanStatus("busy", "Reading the selected area...");
+          try {
+            const { fields, source } = await readLicenseRegion(
+              bitmap,
+              region.x * inv,
+              region.y * inv,
+              region.w * inv,
+              region.h * inv
+            );
+            const changed = applyScanFields(fields);
+            setScanStatus("ok", `${source}: filled ${changed.size} field${changed.size === 1 ? "" : "s"}. Review below before generating.`);
+            cropArea.replaceChildren();
+          } catch (e2) {
+            setScanStatus("err", e2.message);
+          }
+        },
+      },
+      "Read selected area"
+    );
+    const cancelBtn = h("button", { class: "btn", onclick: () => cropArea.replaceChildren() }, "Cancel");
+
+    cropArea.replaceChildren(
+      h("p", { class: "note", style: "margin-bottom:0.4rem" }, "Drag a box around just the striped barcode, then read it. A tight box around the bars works best."),
+      canvas,
+      h("div", { class: "btnrow" }, readBtn, cancelBtn)
+    );
+  }
+
+  const scanButton = (label, hint, scanFn, onFail) => {
     const input = h("input", {
       type: "file",
       accept: "image/*",
       onchange: (e) => {
         const file = e.target.files[0];
-        if (file) handleScan(file, scanFn, label);
+        if (file) handleScan(file, scanFn, label, onFail);
         e.target.value = "";
       },
     });
@@ -334,11 +439,12 @@ function renderMain() {
       h(
         "div",
         { class: "scanrow" },
-        scanButton("Driver's license", "Photo of the BACK (the barcode)", scanLicense),
+        scanButton("Driver's license", "Photo of the BACK (the barcode)", scanLicense, showCropper),
         scanButton("Passport", "Photo page, straight on", scanPassport),
         scanButton("Social Security card", "Front, well lit", scanSsnCard)
       ),
       scanStatus,
+      cropArea,
       h(
         "p",
         { class: "note" },
