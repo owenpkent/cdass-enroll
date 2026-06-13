@@ -111,18 +111,36 @@ function canvasToBlob(canvas) {
  * Returns {fields, source} or throws with a friendly message.
  */
 export async function scanLicense(imageFile) {
-  const read = async (input) => {
-    const results = await readBarcodes(input, { formats: ["PDF417"], tryHarder: true, maxNumberOfSymbols: 1 });
+  const read = async (input, binarizer) => {
+    const results = await readBarcodes(input, {
+      formats: ["PDF417"],
+      tryHarder: true,
+      tryRotate: true,
+      tryInvert: true,
+      maxNumberOfSymbols: 1,
+      binarizer,
+    });
     return results.find((r) => r.isValid && r.text);
   };
-  let hit = await read(imageFile);
-  if (!hit) {
-    const blob = await canvasToBlob(await enhanceCanvas(imageFile, { target: 2400, upscaleOnly: true }));
-    if (blob) hit = await read(blob);
+
+  // Try the original and an upscaled, high-contrast version, each with two
+  // binarizers (LocalAverage handles uneven light, GlobalHistogram handles
+  // clean even light). zxing is fast, so this wide net is cheap.
+  const enhanced = await enhanceCanvas(imageFile, { target: 2600, upscaleOnly: true }).catch(() => null);
+  const enhancedBlob = enhanced ? await canvasToBlob(enhanced) : null;
+  const inputs = [imageFile, enhancedBlob].filter(Boolean);
+
+  let hit = null;
+  for (const binarizer of ["LocalAverage", "GlobalHistogram"]) {
+    for (const input of inputs) {
+      hit = await read(input, binarizer);
+      if (hit) break;
+    }
+    if (hit) break;
   }
   if (!hit) {
     throw new Error(
-      "No PDF417 barcode found. Photograph the BACK of the license (the wide striped barcode), flat and filling the frame, with even light and no glare."
+      "No PDF417 barcode found. Get closer so the barcode fills most of the frame, tap to focus until the bars are sharp, and avoid glare. If it still won't read, type the license details in by hand."
     );
   }
   const fields = parseAamva(hit.text);
