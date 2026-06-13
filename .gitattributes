@@ -1,0 +1,17 @@
+# Normalize line endings. Without this, core.autocrlf=true on Windows rewrites
+# endings on checkout and prints "LF will be replaced by CRLF" on every commit.
+# Text files are stored and checked out as LF everywhere.
+* text=auto eol=lf
+
+# Binary assets: never translate their bytes.
+*.pdf binary
+*.wasm binary
+*.traineddata binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.gz binary
