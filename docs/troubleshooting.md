@@ -11,10 +11,15 @@
 - Crop the photo to roughly the card before uploading if the background is
   busy.
 - The app automatically retries with an upscaled, high-contrast version of the
-  photo, so if it still fails the barcode is likely out of focus, too small in
-  the frame, or you photographed the front by mistake.
-- Very worn cards sometimes have unreadable barcodes; type the details in
-  manually (the license number, state, and expiration are all editable).
+  photo (and a second binarizer), so if it still fails the barcode is likely out
+  of focus, too small in the frame, or you photographed the front by mistake.
+- When auto-decoding fails, the photo appears with a draw-a-box tool. Box just
+  the striped barcode tightly and the app enlarges that region and retries,
+  which rescues a barcode that was small in the frame.
+- No luck with the barcode? Use the **License front** scan instead: it OCRs the
+  front for date of birth and address (best-effort, verify it). Or type the
+  details in (license number, state, expiration, address, and DOB are all
+  editable). Very worn cards sometimes have unreadable barcodes.
 
 **Passport MRZ won't read or values look wrong**
 

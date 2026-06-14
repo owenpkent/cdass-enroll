@@ -37,7 +37,8 @@ assumption changes.
    ID photo (File)                       manual typing
         |                                      |
   src/extract/scanner.js                       |
-  - license: zxing-wasm PDF417 -> aamva.js     |
+  - license back: zxing-wasm PDF417 -> aamva.js|
+  - license front: tesseract OCR -> dlfront.js |
   - passport: tesseract OCR    -> mrz.js       |
   - SSN card: tesseract OCR    -> ssncard.js   |
         \                                      /
@@ -71,9 +72,11 @@ src/extract/aamva.js     PDF417 payload -> profile fields (whitelisted AAMVA
                          element IDs; handles MMDDCCYY vs CCYYMMDD dates)
 src/extract/mrz.js       Passport TD3 MRZ parser with check-digit validation
 src/extract/ssncard.js   SSN + name out of OCR text
+src/extract/dlfront.js   License-front OCR fallback: date of birth + address
 src/fill/util.js         Tolerant pdf-lib helpers (missing field = console
-                         warning, not a crash), date/SSN formatting
-src/fill/packet2026.js   Mapping for the current PPL packet
+                         warning, not a crash), date/SSN formatting, signature
+                         image overlay
+src/fill/packet2026.js   Mapping for the current PPL packet (+ employer signature)
 src/fill/i9.js           I-9 Section 1 + 2 (shared by the packet and standalone)
 src/fill/w4.js           W-4 with 2020-2023 vs 2024+ layout detection
 scripts/setup-assets.mjs Vendors WASM/OCR assets at install time
