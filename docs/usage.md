@@ -31,11 +31,16 @@ runs in a browser profile. Click **← Back to enrollment** when done.
 
 The scan card is at the top of the page. Use a phone photo or any image file:
 
-- **Driver's license**: photograph the **back** of the card. The app reads
+- **License barcode**: photograph the **back** of the card. The app reads
   the PDF417 barcode (the wide striped rectangle), which contains their full
   name, address, date of birth, license number, and expiration exactly as the
-  DMV recorded them. Tips: lay the card flat, fill the frame, avoid glare.
-  The front of the card is not used.
+  DMV recorded them. Tips: lay the card flat, fill the frame, avoid glare. This
+  is the most accurate license scan. If it won't decode, the app shows the
+  photo and lets you drag a box around just the barcode to retry.
+- **License front**: if the barcode won't read, photograph the **front** of
+  the card. OCR best-effort fills the date of birth and address (the name comes
+  from the Social Security card). Front layouts vary by state, so verify these
+  fields; the license number and expiration still need typing.
 - **Passport**: photograph the photo page straight-on with the whole page in
   frame. The app reads the two machine-readable `<<<` lines and validates
   their check digits. The first OCR run takes a few seconds to warm up.

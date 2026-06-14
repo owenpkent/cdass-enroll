@@ -6,6 +6,7 @@ import { createWorker } from "tesseract.js";
 import { parseAamva } from "./aamva.js";
 import { parseMrz } from "./mrz.js";
 import { parseSsnCard } from "./ssncard.js";
+import { parseLicenseFront } from "./dlfront.js";
 
 prepareZXingModule({
   overrides: {
@@ -164,6 +165,24 @@ export async function readLicenseRegion(source, sx, sy, sw, sh) {
   const hit = blob && (await decodePdf417(blob));
   if (!hit) throw new Error("No barcode in the selected area. Draw the box tightly around just the striped barcode and try again.");
   return licenseResult(hit);
+}
+
+/**
+ * OCR the FRONT of a driver's license for the date of birth and address (the
+ * fields the barcode would give, when the barcode won't scan). Best-effort:
+ * front layouts vary by state, so the result must be verified. The name comes
+ * from the Social Security card scan, so it is not read here.
+ */
+export async function scanLicenseFront(imageFile) {
+  const input = (await enhanceCanvas(imageFile).catch(() => null)) ?? imageFile;
+  const text = await ocr(input);
+  const fields = parseLicenseFront(text);
+  if (fields) return { fields, source: "Driver's license front (OCR)" };
+  if (text.replace(/\s/g, "").length <= 3)
+    throw new Error("OCR read no text from the image. The OCR model may not have loaded; check the browser console (F12), or re-run npm run setup.");
+  throw new Error(
+    "Couldn't read the date of birth or address from the front. Retake straight on, filling the frame, with no glare. You may need to type some fields."
+  );
 }
 
 /** Scan the photo page of a passport (reads the MRZ lines at the bottom). */

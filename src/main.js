@@ -6,7 +6,7 @@ import {
   scrubSensitive,
 } from "./schema.js";
 import * as store from "./store.js";
-import { scanLicense, scanPassport, scanSsnCard, readLicenseRegion } from "./extract/scanner.js";
+import { scanLicense, scanLicenseFront, scanPassport, scanSsnCard, readLicenseRegion } from "./extract/scanner.js";
 import { fillPacket2026 } from "./fill/packet2026.js";
 import { fillI9Standalone } from "./fill/i9.js";
 import { fillW4 } from "./fill/w4.js";
@@ -439,7 +439,8 @@ function renderMain() {
       h(
         "div",
         { class: "scanrow" },
-        scanButton("Driver's license", "Photo of the BACK (the barcode)", scanLicense, showCropper),
+        scanButton("License barcode", "Back of card (most accurate)", scanLicense, showCropper),
+        scanButton("License front", "Front photo: DOB + address", scanLicenseFront),
         scanButton("Passport", "Photo page, straight on", scanPassport),
         scanButton("Social Security card", "Front, well lit", scanSsnCard)
       ),

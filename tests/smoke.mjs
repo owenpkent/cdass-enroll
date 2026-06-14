@@ -14,6 +14,7 @@ import { fillW4 } from "../src/fill/w4.js";
 import { parseAamva } from "../src/extract/aamva.js";
 import { parseMrz } from "../src/extract/mrz.js";
 import { parseSsnCard } from "../src/extract/ssncard.js";
+import { parseLicenseFront } from "../src/extract/dlfront.js";
 
 let failures = 0;
 function expect(label, cond, detail = "") {
@@ -55,6 +56,25 @@ expect("MRZ name", mrz?.first === "Jane" && mrz?.last === "Doe", JSON.stringify(
 expect("MRZ passport number", mrz?.passportNumber === "540012345", JSON.stringify(mrz));
 expect("MRZ dob", mrz?.dob === "1986-06-06", mrz?.dob);
 expect("MRZ expiry", mrz?.passportExpiration === "2031-05-15", mrz?.passportExpiration);
+
+// ---- Driver's license FRONT (OCR text) ----
+const frontText = [
+  "COLORADO DRIVER LICENSE",
+  "DOE JANE MARIE",
+  "1234 MAIN ST",
+  "DENVER CO 80203",
+  "DOB 06/06/1986",
+  "4b EXP 09/30/2030",
+  "4a ISS 09/30/2021",
+].join("\n");
+const front = parseLicenseFront(frontText);
+expect("DL front DOB (labeled / earliest)", front?.dob === "1986-06-06", JSON.stringify(front));
+expect(
+  "DL front address",
+  front?.street === "1234 Main St" && front?.city === "Denver" && front?.state === "CO" && front?.zip === "80203",
+  JSON.stringify(front)
+);
+expect("DL front: no address in junk text", parseLicenseFront("CLASS C\nEYES BRO\nHGT 5-06") === null, "");
 
 // ---- SSN card OCR text ----
 const ssnFields = parseSsnCard("SOCIAL SECURITY\n123-45-6789\nJane Marie Doe\nSIGNATURE");
