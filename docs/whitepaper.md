@@ -185,6 +185,69 @@ form exposes, how it gates conditional pages, and which attestations it asks
 for. That analysis produces a mapping module. The surrounding machinery is
 reused as-is.
 
+### 5.1 A live sibling: Coverage Compass (the CCDC Medicaid tool)
+
+This is not hypothetical. **Coverage Compass** is a separate, in-progress
+project, built with CCDC (the Colorado Cross-Disability Coalition), that helps
+disabled Coloradans keep their Medicaid under Colorado's 2027 work-reporting
+rules. It is the same pattern arriving from the other direction, and the two
+projects are complementary halves of one kit.
+
+They share the non-negotiable foundation. Both run entirely in the user's
+browser with no server, no accounts, and no telemetry, both do OCR locally with
+tesseract.js, and in both the documents never leave the device. CDASS Enroll is,
+in effect, a running proof of the privacy-by-architecture constraint that
+Coverage Compass sets for itself.
+
+They share the central data idea. Coverage Compass is organized around one
+personal archive (award letters, waiver paperwork, tax returns, diagnosis
+letters) that serves all three of its Medicaid life events: Reporting,
+Reapplication, and Appeals. That archive is the same thing this paper calls the
+capture-once profile.
+
+Where they meet is the form work, and they approach it from opposite ends.
+Coverage Compass starts on the **read** side: a person drops in a letter from
+the state, and it classifies the letter, extracts the deadline, and explains it
+in plain language (pdf.js plus tesseract.js, matched against an advocate-editable
+rule library). Its later phases need the **write** side: generating an exemption
+packet (its v0.2) and completing renewals and new applications (its Reapplication
+event) is precisely the act of filling official PDFs from the archive. That is
+the engine this paper describes, and CDASS Enroll already implements it: load the
+real template, fill the AcroForm without flattening, keep every field editable,
+gate attestations conservatively, and verify the output is an exact copy. pdf.js
+reads PDFs; pdf-lib (used in CDASS Enroll) writes them. The fill layer, the flat
+per-form mappings, and the exact-and-editable output discipline are the part
+CDASS Enroll contributes to the shared kit.
+
+The division of labor is clean:
+
+| Capability | Where it is proven |
+| --- | --- |
+| Privacy-by-architecture, local-only, in-browser OCR | both |
+| Capture-once personal archive | both as concept; CDASS Enroll has it running |
+| Document extraction (barcode, passport MRZ, OCR with verification) | CDASS Enroll |
+| Fill official PDFs into exact, editable copies | CDASS Enroll |
+| Conservative attestation gating | CDASS Enroll |
+| Notice triage: letter classification and deadline extraction | Coverage Compass |
+| Advocate-in-the-loop review before anything reaches the state | Coverage Compass |
+| Per-state rule library an advocate can edit (YAML) | Coverage Compass |
+| WCAG 2.2 AA accessibility, English and Spanish from day one | Coverage Compass |
+
+Read together, the two are one system. CDASS Enroll proves the extraction and
+fill engine on a real packet today. Coverage Compass adds the triage, the rules
+library, the advocate review, and the accessibility and language work that a
+benefits tool for this population requires. The reusable move is to lift the
+CDASS Enroll fill engine into Coverage Compass's Reapplication and
+exemption-packet flows rather than rebuild it, and to adopt Coverage Compass's
+accessibility and plain-language standards back into tools like CDASS Enroll.
+
+One practical note on portability: CDASS Enroll is vanilla JavaScript over
+pdf-lib; Coverage Compass is TypeScript and React over pdf.js. The fill layer
+moves cleanly between them because it is pure functions over pdf-lib (load a
+template, set named fields, save without flattening) with no UI coupling. The
+schema and the per-form mapping modules port directly; only the rendering and
+storage shells differ.
+
 ## 6. Playbook: adding a new form
 
 This is the concrete, repeatable process, the same one used to support each
