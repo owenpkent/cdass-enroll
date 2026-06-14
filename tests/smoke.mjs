@@ -80,6 +80,8 @@ expect("DL front: no address in junk text", parseLicenseFront("CLASS C\nEYES BRO
 const ssnFields = parseSsnCard("SOCIAL SECURITY\n123-45-6789\nJane Marie Doe\nSIGNATURE");
 expect("SSN extracted", ssnFields?.ssn === "123-45-6789", JSON.stringify(ssnFields));
 expect("SSN card name", ssnFields?.first === "Jane" && ssnFields?.last === "Doe", JSON.stringify(ssnFields));
+const ssnMid = parseSsnCard("123-45-6789\nJANE M DOE\nVALID FOR WORK ONLY");
+expect("SSN card name with middle initial", ssnMid?.first === "Jane" && ssnMid?.middle === "M" && ssnMid?.last === "Doe", JSON.stringify(ssnMid));
 expect("SSN OCR look-alikes corrected", parseSsnCard("I23-4S-6789")?.ssn === "123-45-6789", JSON.stringify(parseSsnCard("I23-4S-6789")));
 expect("SSN spaces tolerated", parseSsnCard("SSN 123 45 6789")?.ssn === "123-45-6789", JSON.stringify(parseSsnCard("SSN 123 45 6789")));
 expect("implausible SSN rejected", parseSsnCard("000-12-3456") === null, JSON.stringify(parseSsnCard("000-12-3456")));

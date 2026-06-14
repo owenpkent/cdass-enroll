@@ -5,13 +5,15 @@ export function parseSsnCard(ocrText) {
   const ssn = findSsn(ocrText);
   if (ssn) out.ssn = ssn;
 
-  // The cardholder name is printed in caps below the number. Look for the
-  // first line that is 2+ capitalized words and not boilerplate.
-  const skip = /SOCIAL|SECURITY|ADMINISTRATION|UNITED|STATES|AMERICA|NUMBER|SIGNATURE|THIS|CARD/i;
+  // The cardholder name is printed below the number. Take the first line that
+  // looks like a name: 2-4 capitalized words, allowing a single-letter middle
+  // initial (with optional period), no digits, and not boilerplate.
+  const skip = /SOCIAL|SECURITY|ADMINISTRATION|UNITED|STATES|AMERICA|NUMBER|SIGNATURE|THIS|CARD|VALID|WORK|EMPLOYMENT|ONLY|PURPOSE/i;
   for (const line of ocrText.split(/\r?\n/)) {
-    const t = line.trim();
-    if (/^[A-Z][A-Za-z.'-]+(\s+[A-Z][A-Za-z.'-]+)+$/.test(t) && !skip.test(t)) {
-      const parts = t.split(/\s+/);
+    const t = line.trim().replace(/\s+/g, " ");
+    if (!t || /\d/.test(t) || skip.test(t)) continue;
+    if (/^[A-Z][A-Za-z'-]+(?:\s+(?:[A-Z]\.?|[A-Z][A-Za-z'-]+)){1,3}$/.test(t)) {
+      const parts = t.replace(/\./g, "").split(/\s+/);
       out.first = titleCase(parts[0]);
       out.last = titleCase(parts[parts.length - 1]);
       if (parts.length > 2) out.middle = titleCase(parts.slice(1, -1).join(" "));
