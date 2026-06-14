@@ -3,7 +3,7 @@
 // packet fillers share this.
 
 import { PDFDocument } from "pdf-lib";
-import { setText, check, fmtDate } from "./util.js";
+import { setText, check, fmtDate, overlaySignature } from "./util.js";
 
 /**
  * Fill the standalone USCIS I-9 (forms/i9.pdf). Same field names as the copy
@@ -14,6 +14,8 @@ export async function fillI9Standalone(templateBytes, p, emp, opts) {
   const form = doc.getForm();
   fillI9(form, p, emp, opts, fmtDate(opts.signatureDate));
   form.updateFieldAppearances();
+  // Employer signs Section 2 (Signature of Employer or AR), page 1 here.
+  await overlaySignature(doc, emp.signature, [{ page: 0, x: 297, y: 82, w: 185, h: 15 }]);
   return doc.save();
 }
 

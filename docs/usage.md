@@ -22,6 +22,10 @@ packet, so enter it once:
 - **Employer of record**: whoever signs as the employer. For the I-9 and W-4
   employer blocks, also fill the business/organization name (something like
   "Jane Smith, Household Employer" works), business address, and EIN.
+- **Employer signature** (optional): upload an image of your signature (a phone
+  photo of it on white paper is fine; the app knocks out the background). It is
+  placed on the employer signature lines of every packet and the I-9. The
+  attendant and all other parties still sign by hand.
 
 Everything saves as you type. If `public/seed.local.json` exists (it does on
 the original machine), these fields arrive pre-filled the first time the app
@@ -98,9 +102,10 @@ printing.
 
 - Review **every page**. The app fills conservatively, but you are the one
   signing.
-- Sign and date by hand wherever a signature is required. A few date boxes
-  are intentionally left blank because of template quirks; see
-  [forms.md](forms.md).
+- Sign and date by hand wherever a signature is required. If you uploaded an
+  employer signature in Your details, the employer lines are already signed; the
+  attendant and other parties still sign by hand. A few date boxes are
+  intentionally left blank because of template quirks; see [forms.md](forms.md).
 - Pages that don't apply (I-9 Supplement A/B, rehire sections) stay blank.
 - Submit per PPL's current instructions. CO CDASS customer service:
   1-888-752-8250, ppcdass@pplfirst.com. EVV help desk: 833-204-9041,

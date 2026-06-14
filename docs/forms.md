@@ -23,6 +23,12 @@ What gets filled:
 | 13-15 | EVV Attestation of Exemption | only when the profile marks the attendant as live-in |
 | 19-22 | USCIS I-9 | Section 1 + Section 2 documents (via `src/fill/i9.js`) |
 
+The employer signature lines on pages 7, 10, 11 have no form field, so when
+`emp.signature` (an uploaded PNG data URL) is present it is drawn onto those
+pages and the I-9 Section 2 line as an image overlay. Coordinates are the
+`EMPLOYER_SIGNATURE` table in `packet2026.js`; nudge them there if a signature
+sits off its line. Other parties' signature lines are never filled.
+
 Quirks of the original PDF (not bugs in this app):
 
 - **Shared "Date" field.** The attendant signature date on the Direct Deposit
@@ -66,6 +72,12 @@ the 2020 redesign but renumbered the rest in 2024:
 The filler detects the layout by whether `f1_08` exists, so either era of
 W-4 dropped onto `public/forms/w4.pdf` fills correctly. Filing status is
 three sibling checkboxes (`c1_1[0..2]`), not a radio group.
+
+**XFA quirk.** The W-4 is an XFA form. pdf-lib strips the XFA and writes the
+values, but Adobe then ignores the generated appearance streams and shows the
+form blank. The filler sets `NeedAppearances` true so the viewer draws the
+values; Chrome and similar keep using the appearance streams, so both render.
+Without that flag the W-4 looks empty even though every field is filled.
 
 ## I-9: `src/fill/i9.js`
 

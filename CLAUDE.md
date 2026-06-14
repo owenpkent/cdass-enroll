@@ -38,5 +38,8 @@ CSP in index.html enforces this and should stay.
 - Missing PDF fields degrade to console warnings, never exceptions
 - Checkboxes that assert facts (live-in, under-18, relationship) are only
   checked when profile data unambiguously supports them
-- Signature fields are never auto-filled
+- Signatures are never fabricated. Only the employer signature is placed, from
+  an image the user uploads in Your details (`emp.signature`), overlaid on the
+  employer signature lines. The attendant and all other parties (Member, FMS
+  vendor, HCPF, preparer) sign by hand
 - pypdf (Python) is the dev-side tool for dumping/verifying PDF fields

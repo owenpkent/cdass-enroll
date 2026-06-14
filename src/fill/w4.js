@@ -5,7 +5,7 @@
 // whether f1_08 exists (2024+) and map accordingly, so a future-year W-4
 // dropped into public/forms/w4.pdf keeps working either way.
 
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName, PDFBool } from "pdf-lib";
 import { bySuffix, fmtDate, fmtSsn } from "./util.js";
 
 const money = (v) => (v === "" || v == null ? "" : String(v));
@@ -66,5 +66,11 @@ export async function fillW4(templateBytes, p, emp, opts) {
   text(n(14), emp.ein);
 
   form.updateFieldAppearances();
+  // The W-4 is an XFA form. pdf-lib strips the XFA and writes the values, but
+  // Adobe then ignores the generated appearance streams and shows the form
+  // blank. NeedAppearances tells the viewer to render the values it was given,
+  // so the filled W-4 displays in every reader. Chrome and the like keep using
+  // the appearance streams generated above, so both paths are covered.
+  form.acroForm.dict.set(PDFName.of("NeedAppearances"), PDFBool.True);
   return doc.save();
 }

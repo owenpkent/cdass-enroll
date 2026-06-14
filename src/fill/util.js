@@ -59,6 +59,33 @@ export function fmtSsn(ssn) {
   return d.length === 9 ? `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}` : ssn ?? "";
 }
 
+/**
+ * Draw a signature image (a PNG data URL) onto the given placements. Each
+ * placement is {page (0-indexed), x, y, w, h} in PDF points; the image is scaled
+ * to the box height, capped to its width, preserving aspect ratio. No-op without
+ * a data URL, and a non-PNG is skipped rather than crashing.
+ */
+export async function overlaySignature(doc, dataUrl, placements) {
+  if (!dataUrl) return;
+  let png;
+  try {
+    png = await doc.embedPng(dataUrl);
+  } catch {
+    return;
+  }
+  const ratio = png.width / png.height || 1;
+  for (const pl of placements) {
+    const page = doc.getPage(pl.page);
+    let h = pl.h;
+    let w = h * ratio;
+    if (w > pl.w) {
+      w = pl.w;
+      h = w / ratio;
+    }
+    page.drawImage(png, { x: pl.x, y: pl.y, width: w, height: h });
+  }
+}
+
 export function todayIso() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(

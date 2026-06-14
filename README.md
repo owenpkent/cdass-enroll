@@ -29,13 +29,13 @@ The app is a single page that handles one person at a time:
 
 1. **One-time, under ⚙ Your details**: enter the Member and employer of record;
    they are reused on every packet.
-2. **Step 1 — upload documents**: photograph the **back** of the attendant's
+2. **Step 1, upload documents**: photograph the **back** of the attendant's
    driver's license (the barcode) and their Social Security card; the app
    fills in their details. (Or type them in.)
-3. **Step 2 — complete their information**: fill what the scans can't know,
+3. **Step 2, complete their information**: fill what the scans can't know,
    such as banking and the standard hourly rate (the emergency rate defaults
    to $45). Review everything.
-4. **Step 3 — generate**: set the dates, click Generate. Filled PDFs land in
+4. **Step 3, generate**: set the dates, click Generate. Filled PDFs land in
    your Downloads folder.
 5. Print, review every page, sign and date by hand, submit to PPL.
 
@@ -50,8 +50,10 @@ The full walkthrough, including scanning tips and what each form needs, is in
 | IRS W-4 (2026 revision, the file PPL links) | `public/forms/w4.pdf` | Auto-detects the 2020-2023 vs 2024+ field layouts, so a future-year W-4 dropped over this file keeps working |
 | Standalone USCIS I-9 | `public/forms/i9.pdf` | Off by default; the packet already embeds an I-9, so use this only if PPL asks for one separately |
 
-Signatures are intentionally never auto-filled, and the app deliberately
-leaves a checkbox blank wherever an attestation is ambiguous (details in
+Signatures are never fabricated. The app places only your employer signature,
+from an image you upload in Your details, on the employer lines; the attendant
+and everyone else sign by hand. The app also deliberately leaves a checkbox
+blank wherever an attestation is ambiguous (details in
 [docs/forms.md](docs/forms.md)).
 
 ## Document scanning

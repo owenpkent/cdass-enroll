@@ -263,6 +263,11 @@ export const EMPLOYER_SECTIONS = [
       { key: "businessName", label: "Business or organization name (I-9 / W-4)", type: "text" },
       { key: "businessAddress", label: "Business address (street, city, state, ZIP)", type: "text" },
       { key: "ein", label: "EIN (W-4)", type: "text" },
+      {
+        key: "signature",
+        label: "Employer signature (uploaded once, placed on the employer signature lines)",
+        type: "signature",
+      },
     ],
   },
 ];

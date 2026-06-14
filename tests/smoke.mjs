@@ -137,6 +137,19 @@ expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
   expect("packet fields stay editable (not flattened)", nOut === nTmpl && nOut > 0, `${nOut} vs ${nTmpl}`);
 }
 
+// An uploaded employer signature must overlay without changing pages or fields.
+{
+  const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const signed = await fillPacket2026(packet2026Src, profile, { ...employer, signature: tinyPng }, opts);
+  const out = await PDFDocument.load(signed);
+  const tmpl = await PDFDocument.load(packet2026Src);
+  expect(
+    "signed packet keeps pages and fields (stays an exact editable copy)",
+    out.getPageCount() === tmpl.getPageCount() && out.getForm().getFields().length === tmpl.getForm().getFields().length,
+    `${out.getPageCount()} pages / ${out.getForm().getFields().length} fields`
+  );
+}
+
 const i9Bytes = await fillI9Standalone(readFileSync(new URL("../public/forms/i9.pdf", import.meta.url)), profile, employer, opts);
 writeFileSync(new URL("./out/i9-filled.pdf", import.meta.url), i9Bytes);
 expect("standalone I-9 filled and saved", i9Bytes.length > 50000, String(i9Bytes.length));

@@ -93,6 +93,9 @@ button.btn.danger:hover { border-color: var(--bad); }
 
 label.field input:disabled, label.field select:disabled { background: #eef1f4; color: var(--muted); cursor: not-allowed; }
 
+.sigfield { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
+.sigpreview { max-width: 320px; max-height: 90px; border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 4px; }
+
 .scanrow { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .scanbtn {
   flex: 1 1 200px;

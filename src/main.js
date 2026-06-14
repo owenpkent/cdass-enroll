@@ -109,6 +109,8 @@ function renderSections(sections, obj, onChange) {
         );
         sel.dataset.key = f.key;
         body.append(h("label", { class: "field" + (f.width === "s" ? " w-s" : "") }, f.label, sel));
+      } else if (f.type === "signature") {
+        body.append(renderSignatureField(f, obj, onChange));
       } else {
         const inp = h("input", {
           type: inputType(f),
@@ -141,6 +143,87 @@ function refreshInputs(container, obj, changedKeys) {
       setTimeout(() => el.classList.remove("flash"), 1600);
     }
   }
+}
+
+async function loadImageFile(file) {
+  try {
+    return await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    return await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Could not read the image file."));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+}
+
+// Turn an uploaded photo or scan of a signature into a clean PNG data URL:
+// knock out the near-white background so it overlays a form line without a box.
+async function cleanSignatureImage(file) {
+  const bmp = await loadImageFile(file);
+  const scale = Math.min(1, 600 / (bmp.width || 1));
+  const w = Math.max(1, Math.round(bmp.width * scale));
+  const h = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(bmp, 0, 0, w, h);
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    if (lum > 200) d[i + 3] = 0;
+    else d[i] = d[i + 1] = d[i + 2] = 17;
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+// Schema "signature" field: upload an image, show a preview, store a PNG data URL.
+function renderSignatureField(f, obj, onChange) {
+  const preview = h("img", { class: "sigpreview", alt: "" });
+  const show = () => {
+    if (obj[f.key]) {
+      preview.src = obj[f.key];
+      preview.style.display = "block";
+    } else {
+      preview.removeAttribute("src");
+      preview.style.display = "none";
+    }
+  };
+  const fileInp = h("input", {
+    type: "file",
+    accept: "image/*",
+    style: "display:none",
+    onchange: async (e) => {
+      const file = e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      try {
+        obj[f.key] = await cleanSignatureImage(file);
+        onChange(f.key);
+        show();
+      } catch (err) {
+        alert("Could not read that image: " + err.message);
+      }
+    },
+  });
+  show();
+  return h(
+    "div",
+    { class: "field sigfield" },
+    h("span", {}, f.label),
+    preview,
+    h(
+      "div",
+      { class: "btnrow" },
+      h("button", { class: "btn", onclick: () => fileInp.click() }, "Upload signature image"),
+      h("button", { class: "btn", onclick: () => { obj[f.key] = ""; onChange(f.key); show(); } }, "Clear"),
+      fileInp
+    )
+  );
 }
 
 // ---------- shell ----------
@@ -216,26 +299,13 @@ function renderMain() {
     }
   }
 
-  async function loadImage(file) {
-    try {
-      return await createImageBitmap(file, { imageOrientation: "from-image" });
-    } catch {
-      return await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error("Could not read the image file."));
-        img.src = URL.createObjectURL(file);
-      });
-    }
-  }
-
   // When the license barcode won't auto-decode, show the photo and let the user
   // box the barcode; that region is enlarged and decoded.
   async function showCropper(file, err) {
     setScanStatus("err", err.message);
     let bitmap;
     try {
-      bitmap = await loadImage(file);
+      bitmap = await loadImageFile(file);
     } catch (e) {
       return setScanStatus("err", e.message);
     }
@@ -435,7 +505,7 @@ function renderMain() {
     h(
       "div",
       { class: "card" },
-      h("h2", {}, "Step 1 — Upload identification documents"),
+      h("h2", {}, "Step 1: Upload identification documents"),
       h(
         "div",
         { class: "scanrow" },
@@ -455,7 +525,7 @@ function renderMain() {
     h(
       "div",
       { class: "stepintro" },
-      h("h2", {}, "Step 2 — Their information"),
+      h("h2", {}, "Step 2: Their information"),
       h(
         "p",
         { class: "note" },
@@ -466,7 +536,7 @@ function renderMain() {
     h(
       "div",
       { class: "card" },
-      h("h2", {}, "Step 3 — Generate the PDF"),
+      h("h2", {}, "Step 3: Generate the PDF"),
       h(
         "div",
         { class: "grid" },
@@ -485,7 +555,7 @@ function renderMain() {
       h(
         "p",
         { class: "note" },
-        "Signatures are never auto-filled. The output is an exact, editable copy of the packet, so you can adjust any field in your PDF reader before printing. The packet's rehire page (Supplement B) shares a field with I-9 List A in the original PDF, so if a passport was used, ignore the mirrored title on that page."
+        "Your employer signature is placed on the employer lines when you upload one in Your details; the attendant and other parties sign by hand. The output is an exact, editable copy of the packet, so you can adjust any field in your PDF reader before printing. The packet's rehire page (Supplement B) shares a field with I-9 List A in the original PDF, so if a passport was used, ignore the mirrored title on that page."
       )
     ),
     h(

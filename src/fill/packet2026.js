@@ -15,8 +15,19 @@
 //   (consistent, since a live-in attendant shares the Member's address).
 
 import { PDFDocument } from "pdf-lib";
-import { setText, check, selectButton, fmtDate, fmtSsn } from "./util.js";
+import { setText, check, selectButton, fmtDate, fmtSsn, overlaySignature } from "./util.js";
 import { fillI9 } from "./i9.js";
+
+// Employer signature image placements (0-indexed pages). The signature lines on
+// pages 7/10/11 have no form field, so the image is drawn onto the page; the
+// I-9 Section 2 line on page 19 has a field but the image overlays it cleanly.
+// The attendant and all other parties sign by hand, so only employer lines fill.
+const EMPLOYER_SIGNATURE = [
+  { page: 6, x: 145, y: 133, w: 295, h: 22 }, // p7 Employer Signature
+  { page: 9, x: 145, y: 67, w: 300, h: 22 }, // p10 Employer Signature
+  { page: 10, x: 145, y: 51, w: 300, h: 22 }, // p11 Employer Signature
+  { page: 18, x: 297, y: 82, w: 185, h: 15 }, // p19 I-9 Signature of Employer or AR
+];
 
 export async function fillPacket2026(templateBytes, p, emp, opts) {
   const doc = await PDFDocument.load(templateBytes);
@@ -156,6 +167,7 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
   fillI9(form, p, emp, opts, sig);
 
   form.updateFieldAppearances();
+  await overlaySignature(doc, emp.signature, EMPLOYER_SIGNATURE);
   return doc.save();
 }
 

@@ -68,7 +68,8 @@ carried to any other form.
    and never flattens them. The generated PDF is byte-for-byte the same form,
    same pages, same live fields, with values filled in, so the user can still
    correct any field in a normal PDF reader before printing. Signatures are
-   never auto-filled.
+   never fabricated: the app places only a signature image the signer supplies,
+   and every other party's signature line stays blank.
 5. **Conservative correctness.** Checkboxes that assert facts (a live-in
    relationship, an age threshold, a tax status) are only checked when the
    stored data unambiguously supports them. Extracted values are shown for
