@@ -98,6 +98,7 @@ review them.
 | [docs/architecture.md](docs/architecture.md) | How it works: stack, data flow, module map, design decisions |
 | [docs/forms.md](docs/forms.md) | Per-form field mappings, template quirks, and how to handle form revisions |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Scan failures, setup problems, data recovery |
+| [docs/whitepaper.md](docs/whitepaper.md) | The reusable local-first form-autofill pattern, and how to extend it to other forms (Medicaid, SNAP) |
 
 ## Development
 
