@@ -21,6 +21,10 @@ below as 0.1.0, and work since then sits under Unreleased.
 - **White paper.** `docs/whitepaper.md` describes the reusable local-first
   form-autofill pattern and relates it to the CCDC Medicaid tool (Coverage
   Compass).
+- **Editing completed PDFs.** `docs/editing-completed-pdfs.md` documents how to
+  surgically change a value (a rate, a date) on an already-filled Adobe Fill &
+  Sign PDF outside the app: redact the old text only so table borders survive,
+  then redraw on the same baseline. Includes a change log of such edits.
 
 ### Changed
 - **Single-person, single-page workflow.** The app now does one person at a time
