@@ -9,3 +9,6 @@ output/
 public/seed.local.json
 tests/out/
 _incoming/
+# Reference spec, kept locally: it is copyright AAMVA, so it is cited in
+# docs/forms.md rather than redistributed here.
+AAMVADLIDCardDesignStandard*.pdf

@@ -3,7 +3,7 @@
 
 import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
 import { createWorker } from "tesseract.js";
-import { parseAamva } from "./aamva.js";
+import { parseAamva, AAMVA_READ_OPTIONS } from "./aamva.js";
 import { parseMrz } from "./mrz.js";
 import { parseSsnCard } from "./ssncard.js";
 import { parseLicenseFront } from "./dlfront.js";
@@ -48,9 +48,18 @@ async function ocrDigits(input) {
 
 // ---- image preprocessing -------------------------------------------------
 // Phone photos of small cards are often too low-resolution or low-contrast for
-// reliable OCR / barcode decoding. Upscaling and converting to high-contrast
-// grayscale improves both. Each scanner tries the original first (so a good
-// photo is never made worse) and falls back to this enhanced version.
+// reliable OCR / barcode decoding. Upscaling, converting to high-contrast
+// grayscale, and sharpening all improve both. Each scanner tries the original
+// first (so a good photo is never made worse) and falls back to the enhanced
+// version.
+//
+// Sharpening is the load-bearing step for the license barcode, which was
+// measured rather than assumed. On a real 1553px Colorado ID photo whose PDF417
+// sits at ~1.3 pixels per module, neither upscaling nor a contrast stretch
+// decodes on any binarizer; an unsharp mask decodes even without upscaling.
+// Phone optics and JPEG leave the bars soft but intact, and unsharp restores
+// the edges. (Synthetic motion blur is a different thing and is not
+// recoverable, so do not use it to judge whether this step earns its place.)
 
 async function loadBitmap(file) {
   try {
@@ -80,6 +89,7 @@ async function enhanceCanvas(file, { target = 2000, upscaleOnly = false } = {}) 
   ctx.drawImage(bmp, 0, 0, w, h);
   const img = ctx.getImageData(0, 0, w, h);
   grayContrast(img.data);
+  unsharp(img.data, w, h);
   ctx.putImageData(img, 0, 0);
   return canvas;
 }
@@ -101,6 +111,60 @@ function grayContrast(d) {
   }
 }
 
+/**
+ * Unsharp mask over the grayscale already in `d` (RGBA, gray in every channel).
+ * result = pixel + amount * (pixel - blurred). Defaults match what was measured
+ * to decode a real license photo (PIL's radius=2 / percent=200 equivalent).
+ */
+function unsharp(d, w, h, sigma = 2, amount = 2) {
+  const n = w * h;
+  const gray = new Float32Array(n);
+  for (let i = 0; i < n; i++) gray[i] = d[i * 4];
+
+  const blurred = gaussianBlur(gray, w, h, sigma);
+  for (let i = 0; i < n; i++) {
+    const v = gray[i] + amount * (gray[i] - blurred[i]);
+    d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v < 0 ? 0 : v > 255 ? 255 : v;
+  }
+}
+
+// Separable Gaussian. Two 1-D passes, so cost stays linear in pixels.
+function gaussianBlur(src, w, h, sigma) {
+  const r = Math.max(1, Math.ceil(sigma * 2));
+  const k = new Float32Array(2 * r + 1);
+  let sum = 0;
+  for (let i = -r; i <= r; i++) {
+    const v = Math.exp(-(i * i) / (2 * sigma * sigma));
+    k[i + r] = v;
+    sum += v;
+  }
+  for (let i = 0; i < k.length; i++) k[i] /= sum;
+
+  const tmp = new Float32Array(w * h);
+  const out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let acc = 0;
+      for (let i = -r; i <= r; i++) {
+        const xx = x + i < 0 ? 0 : x + i >= w ? w - 1 : x + i; // clamp at edges
+        acc += src[y * w + xx] * k[i + r];
+      }
+      tmp[y * w + x] = acc;
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let acc = 0;
+      for (let i = -r; i <= r; i++) {
+        const yy = y + i < 0 ? 0 : y + i >= h ? h - 1 : y + i;
+        acc += tmp[yy * w + x] * k[i + r];
+      }
+      out[y * w + x] = acc;
+    }
+  }
+  return out;
+}
+
 function canvasToBlob(canvas) {
   return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
@@ -115,14 +179,7 @@ function canvasToBlob(canvas) {
 // binarizers (LocalAverage for uneven light, GlobalHistogram for even light).
 async function decodePdf417(input) {
   for (const binarizer of ["LocalAverage", "GlobalHistogram"]) {
-    const results = await readBarcodes(input, {
-      formats: ["PDF417"],
-      tryHarder: true,
-      tryRotate: true,
-      tryInvert: true,
-      maxNumberOfSymbols: 1,
-      binarizer,
-    });
+    const results = await readBarcodes(input, { ...AAMVA_READ_OPTIONS, binarizer });
     const hit = results.find((r) => r.isValid && r.text);
     if (hit) return hit;
   }
@@ -149,22 +206,27 @@ export async function scanLicense(imageFile) {
 
 // Decode the barcode from a user-selected region (the cropper). `source` is an
 // image the canvas can draw (an ImageBitmap); sx/sy/sw/sh are the crop rect in
-// source pixels. The crop is upscaled and contrast-stretched so the dense bars
-// get enough pixels to decode, which rescues a barcode that was small in frame.
+// source pixels. The crop is upscaled, contrast-stretched and sharpened so the
+// dense bars get enough pixels to decode, which rescues a barcode that was
+// small in frame.
 export async function readLicenseRegion(source, sx, sy, sw, sh) {
-  const scale = Math.min(4, Math.max(1, 1600 / sw));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(sw * scale));
-  canvas.height = Math.max(1, Math.round(sh * scale));
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(source, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  grayContrast(img.data);
-  ctx.putImageData(img, 0, 0);
-  const blob = await canvasToBlob(canvas);
-  const hit = blob && (await decodePdf417(blob));
-  if (!hit) throw new Error("No barcode in the selected area. Draw the box tightly around just the striped barcode and try again.");
-  return licenseResult(hit);
+  // Try several scales: sharpening at native resolution decodes some photos
+  // that upscaling alone cannot, and vice versa, so neither one is sufficient.
+  for (const scale of [Math.min(4, Math.max(1, 1600 / sw)), 1, 2, 3]) {
+    canvas.width = Math.max(1, Math.round(sw * scale));
+    canvas.height = Math.max(1, Math.round(sh * scale));
+    ctx.drawImage(source, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    grayContrast(img.data);
+    unsharp(img.data, canvas.width, canvas.height);
+    ctx.putImageData(img, 0, 0);
+    const blob = await canvasToBlob(canvas);
+    const hit = blob && (await decodePdf417(blob));
+    if (hit) return licenseResult(hit);
+  }
+  throw new Error("No barcode in the selected area. Draw the box tightly around just the striped barcode and try again.");
 }
 
 /**
@@ -202,6 +264,9 @@ export async function scanPassport(imageFile) {
 export async function scanSsnCard(imageFile) {
   const input = (await enhanceCanvas(imageFile).catch(() => null)) ?? imageFile;
   // Normal pass for the name, digits-only pass for the number; search both.
+  // The two passes are not independent checks: same engine, same preprocessed
+  // image, so they misread the same character the same way. Comparing them
+  // would give false confidence, not verification.
   const text = (await ocr(input)) + "\n" + (await ocrDigits(input));
   const fields = parseSsnCard(text);
   if (fields) return { fields, source: "Social Security card" };

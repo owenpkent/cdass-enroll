@@ -18,6 +18,17 @@ import { PDFDocument } from "pdf-lib";
 import { setText, check, selectButton, fmtDate, fmtSsn, overlaySignature } from "./util.js";
 import { fillI9 } from "./i9.js";
 
+// Page 10 carries three parallel rate tables and the rate goes in exactly one:
+// Table 1 (CDASS) for most members, Table 2 for SLS waiver members, Table 3 for
+// Community First Choice. Which one is a property of the Member, not the
+// attendant, so it is keyed by emp.memberProgram; "" (unset) means Table 1,
+// where a member on any waiver other than SLS belongs.
+const RATE_TABLE = {
+  "": { standard: "CDASS Standard Rate", emergency: "CDASS Emergency Rate" },
+  sls: { standard: "SLS CDASS Standard Rate", emergency: "SLS CDASS Emergency Rate" },
+  cfc: { standard: "CFC CDASS Standard Rate", emergency: "CFC CDASS Emergency Rate" },
+};
+
 // Employer signature image placements (0-indexed pages). The signature lines on
 // pages 7/10/11 have no form field, so the image is drawn onto the page; the
 // I-9 Section 2 line on page 19 has a field but the image overlays it cleanly.
@@ -108,7 +119,9 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
       ? { street: p.street, street2: p.street2, city: p.city, state: p.state, zip: p.zip, county: p.county }
       : { street: p.mailStreet, street2: p.mailStreet2, city: p.mailCity, state: p.mailState, zip: p.mailZip, county: "" };
     setText(form, "Address", mail.street);
-    setText(form, ", or other)", mail.street2); // truncated label for "Address 2 (Apt., Ste., or other)"
+    // Periods in this name make pypdf's dump show only the tail (", or other)");
+    // pdf-lib wants the whole thing.
+    setText(form, "Address 2 (Apt., Ste., or other)", mail.street2);
     setText(form, "City", mail.city);
     setText(form, "Zip Code", mail.zip);
     setText(form, "County", mail.county);
@@ -120,10 +133,12 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
   // ---- Page 10: Services and rates ----
   check(form, "New Service", opts.newService);
   check(form, "Change Hourly Rate: only mark if the attendant is already working", !opts.newService);
-  setText(form, "CDASS Standard Rate", p.rateStandardCdass);
-  setText(form, "CDASS Emergency Rate", p.rateEmergencyCdass);
-  // SLS Health Maintenance rate boxes are intentionally left blank: this app
-  // only enrolls CDASS attendants. Fill them by hand if HM service is added.
+  const rate = RATE_TABLE[emp.memberProgram] ?? RATE_TABLE[""];
+  setText(form, rate.standard, p.rateStandardCdass);
+  setText(form, rate.emergency, p.rateEmergencyCdass);
+  // The Other Rate boxes, SLS Health Maintenance, and CFC Legally Responsible
+  // Person Homemaker are intentionally left blank: this app sets one CDASS
+  // rate. Fill them by hand if those services are added.
   setText(form, "Attendant Signature Date", sig);
   setText(form, "Employer Signature Date", sig);
 
@@ -175,8 +190,8 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
 function spreadDigits(form, prefix, value, count) {
   const digits = (value ?? "").replace(/\D/g, "");
   if (!digits) return;
-  // Account boxes are right-justified on the form? No: left-aligned, so fill
-  // from box 1. Trailing boxes stay empty for shorter numbers.
+  // The boxes are left-aligned, so fill from box 1; trailing boxes stay empty
+  // for a number shorter than the row.
   for (let i = 0; i < Math.min(digits.length, count); i++) {
     setText(form, `${prefix} ${i + 1}`, digits[i]);
   }

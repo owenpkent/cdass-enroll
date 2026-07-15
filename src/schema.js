@@ -18,17 +18,6 @@ export const PROFILE_SECTIONS = [
     fields: [
       { key: "dob", label: "Date of birth", type: "date", sensitive: true },
       { key: "ssn", label: "Social Security Number", type: "ssn", sensitive: true },
-      {
-        key: "gender",
-        label: "Gender",
-        type: "select",
-        options: [
-          ["", ""],
-          ["male", "Male"],
-          ["female", "Female"],
-          ["undisclosed", "Prefer not to disclose"],
-        ],
-      },
     ],
   },
   {
@@ -41,7 +30,6 @@ export const PROFILE_SECTIONS = [
       { key: "state", label: "State", type: "text", width: "s" },
       { key: "zip", label: "ZIP code", type: "text", width: "s" },
       { key: "county", label: "County", type: "text" },
-      { key: "municipality", label: "Municipality", type: "text" },
       {
         key: "mailingSame",
         label: "Mailing address is the same",
@@ -110,11 +98,6 @@ export const PROFILE_SECTIONS = [
     fields: [
       { key: "directDeposit", label: "Direct deposit to bank account", type: "checkbox", default: true },
       {
-        key: "sameAccountAllMembers",
-        label: "Use the same account for all Members they work for",
-        type: "checkbox",
-      },
-      {
         key: "accountType",
         label: "Account type",
         type: "select",
@@ -124,12 +107,6 @@ export const PROFILE_SECTIONS = [
       { key: "routing", label: "Routing number", type: "text", sensitive: true },
       { key: "account", label: "Account number", type: "text", sensitive: true },
       { key: "paperPayStub", label: "Mail paper pay stubs (no internet access)", type: "checkbox" },
-      {
-        key: "directoryOptIn",
-        label: "List in the Attendant directory",
-        type: "select",
-        options: [["", ""], ["yes", "Yes"], ["no", "No"]],
-      },
     ],
   },
   {
@@ -251,6 +228,16 @@ export const EMPLOYER_SECTIONS = [
       { key: "memberLast", label: "Member last name", type: "text" },
       { key: "memberPplId", label: "Member PPL ID", type: "text" },
       { key: "memberMedicaidId", label: "Member Medicaid ID (EVV exemption form)", type: "text" },
+      {
+        key: "memberProgram",
+        label: "Member's program (picks the rate table on the rates form)",
+        type: "select",
+        options: [
+          ["", "CDASS (most members)"],
+          ["sls", "Supported Living Services (SLS) waiver only"],
+          ["cfc", "Community First Choice (CFC) only"],
+        ],
+      },
     ],
   },
   {
