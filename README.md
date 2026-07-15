@@ -99,6 +99,7 @@ review them.
 | [docs/usage.md](docs/usage.md) | Step-by-step enrollment walkthrough, scanning tips, submitting to PPL |
 | [docs/architecture.md](docs/architecture.md) | How it works: stack, data flow, module map, design decisions |
 | [docs/forms.md](docs/forms.md) | Per-form field mappings, template quirks, and how to handle form revisions |
+| [docs/id-barcode.md](docs/id-barcode.md) | The license/state-ID barcode: payload format, the traps it has produced, and how to diagnose a scan that won't read |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Scan failures, setup problems, data recovery |
 | [docs/editing-completed-pdfs.md](docs/editing-completed-pdfs.md) | Surgically editing a value on an already-filled (Adobe Fill & Sign) PDF outside the app |
 | [docs/whitepaper.md](docs/whitepaper.md) | The reusable local-first form-autofill pattern, and how to extend it to other forms (Medicaid, SNAP) |

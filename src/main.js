@@ -17,7 +17,7 @@ import { todayIso } from "./fill/util.js";
 const state = {
   profile: store.loadProfile(),
   employer: store.loadEmployer(),
-  genOptions: { signatureDate: todayIso(), firstDay: "", rateEffectiveDate: "", newService: true },
+  genOptions: { signatureDate: todayIso(), firstDay: "", newService: true },
   showSettings: false,
 };
 
@@ -541,8 +541,7 @@ function renderMain() {
         "div",
         { class: "grid" },
         dateField("Signature date (printed on each form)", "signatureDate"),
-        dateField("First day of employment (I-9 / W-4)", "firstDay"),
-        dateField("Rate effective date", "rateEffectiveDate")
+        dateField("First day of employment (I-9 / W-4)", "firstDay")
       ),
       h("h3", {}, "Forms to generate"),
       h("label", { class: "check" }, packetCb, "PPL CDASS Attendant Packet 2026 (enrollment, agreement, direct deposit, rates, tax exemptions, EVV exemption, I-9)"),

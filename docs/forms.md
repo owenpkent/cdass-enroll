@@ -18,7 +18,7 @@ What gets filled:
 | --- | --- | --- |
 | 2-7 | Attendant Enrollment and Agreement | name, DOB, SSN, addresses, contact, relationship to Member, printed names, signature dates |
 | 8-9 | Direct Deposit | bank info as one digit per box; paper-check address block when direct deposit is off |
-| 10 | Services and Rates | new-service vs rate-change, CDASS standard + emergency rate (HM rate boxes left blank), signature dates |
+| 10 | Services and Rates | new-service vs rate-change, CDASS standard + emergency rate into the table the Member's program selects, signature dates |
 | 11 | Tax Exemptions | relation-to-employer and age-gated attestations |
 | 13-15 | EVV Attestation of Exemption | only when the profile marks the attendant as live-in |
 | 19-22 | USCIS I-9 | Section 1 + Section 2 documents (via `src/fill/i9.js`) |
@@ -29,8 +29,35 @@ pages and the I-9 Section 2 line as an image overlay. Coordinates are the
 `EMPLOYER_SIGNATURE` table in `packet2026.js`; nudge them there if a signature
 sits off its line. Other parties' signature lines are never filled.
 
+### The three rate tables (page 10)
+
+The rates page carries three tables with parallel field names, and a rate
+belongs in exactly one of them:
+
+| Table | Applies to | Field names |
+| --- | --- | --- |
+| 1 | Most members (any waiver except SLS) | `CDASS Standard Rate`, `CDASS Emergency Rate` |
+| 2 | Members on the Supported Living Services (SLS) waiver only | `SLS CDASS ...` (plus `SLS Health Maintenance ...`) |
+| 3 | Members in Community First Choice (CFC) only | `CFC CDASS ...` (plus `CFC Legally Responsible Person Homemaker ...`) |
+
+Which table to use is a property of the **Member**, not the attendant, so it
+comes from `emp.memberProgram` (set under ⚙ Your details) via the `RATE_TABLE`
+map in `packet2026.js`. Unset means Table 1. Writing the rate into the wrong
+table produces a wrong form rather than a blank one, so the smoke test asserts
+that each program fills its own table and leaves the other two empty.
+
+The Other Rate boxes, SLS Health Maintenance, and CFC Legally Responsible
+Person Homemaker are left blank: the app sets a single CDASS rate. Fill them by
+hand if those services are added.
+
 Quirks of the original PDF (not bugs in this app):
 
+- **Field names can contain periods.** The Direct Deposit paper-check line is
+  `Address 2 (Apt., Ste., or other)`. pypdf builds its field tree by splitting
+  on `.`, so a dump shows only the tail (`, or other)`) and the parent stubs
+  (`Address 2 (Apt`). pdf-lib wants the full name. Cross-check any dotted name
+  against pdf-lib's `getForm().getFields().map(f => f.getName())` before
+  mapping it.
 - **Shared "Date" field.** The attendant signature date on the Direct Deposit
   page is the same PDF field as the FMS-vendor signature date on the EVV
   exemption form, so the app leaves it blank. Date it by hand when signing.
@@ -84,7 +111,7 @@ Without that flag the W-4 looks empty even though every field is filled.
 The I-9 mapping is its own module because the same USCIS build appears in
 two places with identical field names: embedded in the PPL packet (pages
 19-22) and as the standalone `public/forms/i9.pdf` that PPL links (off by
-default in the Generate tab, for when PPL requests a separate copy). The
+default under Step 3, for when PPL requests a separate copy). The
 only difference found so far: the standalone's employee State field is a
 dropdown, which `setText` in `util.js` handles transparently.
 
@@ -96,6 +123,24 @@ Document logic:
   expiration), and if an SSN is present, List C gets the Social Security
   card.
 - The I-9 SSN field has `maxLength=9`, so it gets digits without dashes.
+
+## The license barcode (AAMVA PDF417)
+
+Not a PPL form, but the same shape of problem: an external format whose contract
+this app depends on, where a spec revision or a wrong assumption silently
+produces a half-filled form. It has its own document, because the payload
+structure and the three defects it has already produced need more room than a
+section: **[id-barcode.md](id-barcode.md)**.
+
+The short version, if you are only passing through:
+
+- Element IDs are anchored at the start of their line, never searched for. A
+  state ID's subfile type spells `IDDAQ`, whose `DDA` is a valid element ID one
+  character early, and it eats the license number. Test both card types.
+- zxing must read with `textMode: "Plain"`. Its default mangles the newlines
+  AAMVA separates elements with.
+- Only elements the forms ask for are extracted; whatever a parser returns is
+  persisted into the profile.
 
 ## When a form is revised
 
@@ -112,6 +157,9 @@ Document logic:
 
    For page placement and the labels next to each field, walk
    `page["/Annots"]` for widget rectangles and use `page.extract_text()`.
+   Remember that pypdf splits names on `.`, so any field whose own name
+   contains a period shows up truncated; confirm those against pdf-lib's
+   `getFields()` names, which is what the mappings actually pass.
 3. Update or clone the mapping module. Unmatched fields are skipped with a
    console warning rather than crashing, so a partial mapping still fills
    what it can while you work.
@@ -120,3 +168,18 @@ Document logic:
    and sometimes a trap (the 2026 "Date" field above).
 5. Run `node tests/smoke.mjs`, then open the PDFs in `tests/out/` and check
    every page visually.
+
+The smoke test is built around step 3's tolerance being a double-edged sword.
+Because a renamed field is skipped with a console warning rather than an
+exception, a revision can silently ship a half-empty PDF that still has the
+right page count and byte size. So the test does two things beyond filling:
+
+- It captures those warnings and fails on any of them, which asserts that
+  every name the mappings write still exists in the templates.
+- It reads representative values back out of the filled bytes (names, SSN
+  formatting, per-digit bank boxes, rate table routing, I-9 List A vs List B/C,
+  age-gated attestations, the W-4 employer block), so a field that resolves but
+  receives the wrong value is caught too.
+
+Keep both when adding a mapping: a new field name with no readback assertion is
+only half covered.

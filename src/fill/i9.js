@@ -3,7 +3,7 @@
 // packet fillers share this.
 
 import { PDFDocument } from "pdf-lib";
-import { setText, check, fmtDate, overlaySignature } from "./util.js";
+import { setText, check, fmtDate, fmtSsn, overlaySignature } from "./util.js";
 
 /**
  * Fill the standalone USCIS I-9 (forms/i9.pdf). Same field names as the copy
@@ -64,7 +64,7 @@ export function fillI9(form, p, emp, opts, sig) {
     if (p.ssn) {
       setText(form, "List C Document Title 1", "Social Security Card");
       setText(form, "List C Issuing Authority 1", "Social Security Administration");
-      setText(form, "List C Document Number 1", fmtSsnDashes(p.ssn));
+      setText(form, "List C Document Number 1", fmtSsn(p.ssn));
     }
   }
 
@@ -101,9 +101,4 @@ const STATE_NAMES = {
 function dmvName(state) {
   const full = STATE_NAMES[(state ?? "").trim().toUpperCase()];
   return full ? `${full} DMV` : state;
-}
-
-function fmtSsnDashes(ssn) {
-  const d = (ssn ?? "").replace(/\D/g, "");
-  return d.length === 9 ? `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}` : ssn;
 }

@@ -8,6 +8,12 @@ below as 0.1.0, and work since then sits under Unreleased.
 ## [Unreleased]
 
 ### Added
+- **Member program picks the rate table.** The rates page has three tables and
+  the rate belongs in exactly one: CDASS (most members), SLS waiver only, or
+  Community First Choice only. A new "Member's program" setting in Your details
+  chooses; unset keeps the previous behaviour (the CDASS table). Previously the
+  rate always went into the CDASS table, so a CFC member's packet named a rate
+  in the wrong table.
 - **Employer signature.** Upload an image of your signature in Your details. It
   is placed on the packet's three employer signature lines and the I-9 Section 2
   employer line. A photo on white paper works; the app knocks out the
@@ -27,6 +33,18 @@ below as 0.1.0, and work since then sits under Unreleased.
   then redraw on the same baseline. Includes a change log of such edits.
 
 ### Changed
+- **Fields that went nowhere were removed.** Gender, municipality, "use the same
+  account for all Members", "list in the Attendant directory", and the Step 3
+  "Rate effective date" were mapped by the 2025 packet and left orphaned when
+  that packet was removed; the 2026 packet does not ask any of them. They were
+  collected and written to no form. The license barcode and passport MRZ
+  parsers also stop returning sex and issuing country for the same reason:
+  whatever a parser returns is stored in the profile, so extracting an unused
+  attribute only persists data nothing asks for.
+- **Smoke test asserts values, not just that a file came out.** It now reads
+  filled values back out of the PDFs and fails on any unresolved field name.
+  Previously a renamed field was skipped with a console warning, so a template
+  revision could ship a half-empty PDF while every test still passed.
 - **Single-person, single-page workflow.** The app now does one person at a time
   on one page: upload documents, review the auto-filled form, generate. The
   reused Member and employer details moved into a "Your details" settings panel.
@@ -45,6 +63,38 @@ below as 0.1.0, and work since then sits under Unreleased.
 - **Line endings** pinned to LF via `.gitattributes`.
 
 ### Fixed
+- **State ID cards lost the ID number.** A non-DL card uses the subfile type
+  `ID` (AAMVA D.12.4), so its payload reads `IDDAQ<number>`, and `DDA` (itself
+  a valid element ID) matched one character early and swallowed the number,
+  which runs to the end of its line. Every state ID was affected and every
+  driver's licence was not (`DLDAQ` has no such collision), so the DL-only test
+  fixture never saw it. Element IDs are now anchored where AAMVA puts them
+  (start of line, or after the subfile type on the header line) instead of
+  being searched for at any offset. A state-ID fixture now covers it. This
+  matters beyond the licence field: the I-9 List B document number comes from
+  it.
+- **The license barcode would not decode from ordinary phone photos.** The
+  preprocessing upscaled and stretched contrast but never sharpened, which is
+  the one thing that matters: on a real 1553px ID photo (~1.3 pixels per
+  barcode module) no binarizer decoded it, while an unsharp mask decoded it
+  even without upscaling. Phone optics and JPEG leave the bars soft but intact.
+  The enhanced pass now sharpens, and the crop tool tries several scales rather
+  than one.
+- **License barcode scanning was broken end to end.** A decode reported success
+  but filled only the license number, with the entire barcode payload as its
+  value. zxing defaults to `textMode: "HRI"`, which renders control characters
+  as literal placeholders, so the newlines AAMVA uses to separate its elements
+  arrived as the four characters `<LF>` and every field after the first was
+  swallowed into the first one. Reading with `textMode: "Plain"` fills all 11
+  fields (name, DOB, address, license number, expiration). The parser and the
+  decoder were each fine and separately tested; nothing covered the seam
+  between them, so `tests/smoke.mjs` now decodes a real PDF417 fixture
+  (`tests/fixtures/license-barcode-jane-doe.png`) and parses the result.
+- **Paper-check Apt/Ste line never filled.** The Direct Deposit mailing address
+  field is named `Address 2 (Apt., Ste., or other)`, but the mapping used
+  `, or other)`: pypdf splits field names on `.`, so its dump showed only the
+  tail. pdf-lib found no such field, warned, and moved on. Only affected packets
+  generated with direct deposit turned off.
 - **W-4 printed blank.** The IRS W-4 is an XFA form; pdf-lib wrote every value
   but Adobe ignored the generated appearances. Setting `NeedAppearances` makes
   the filled W-4 render in every viewer.

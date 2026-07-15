@@ -23,17 +23,16 @@ export function parseMrz(ocrText) {
   const numberOk = checksum(line2.slice(0, 9)) === line2[9];
   const dob = mrzDate(line2.slice(13, 19), true);
   const dobOk = checksum(line2.slice(13, 19)) === line2[19];
-  const sex = line2[20];
   const expiry = mrzDate(line2.slice(21, 27), false);
   const expiryOk = checksum(line2.slice(21, 27)) === line2[27];
-  const country = line2.slice(10, 13).replace(/</g, "");
 
+  // The MRZ also carries sex and issuing country. No form field asks for them,
+  // so they are not returned: anything returned here is written into the
+  // profile and persisted to localStorage.
   const out = {
     last: titleCase(last),
     first: titleCase(givenParts[0] ?? ""),
     middle: titleCase(givenParts.slice(1).join(" ")),
-    gender: sex === "M" ? "male" : sex === "F" ? "female" : "",
-    passportCountry: country,
   };
   if (passportNumber && numberOk) out.passportNumber = passportNumber;
   if (dob && dobOk) out.dob = dob;
