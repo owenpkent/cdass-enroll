@@ -23,7 +23,9 @@ packet, so enter it once:
   employer blocks, also fill the business/organization name (something like
   "Jane Smith, Household Employer" works), business address, and EIN.
 - **Employer signature** (optional): upload an image of your signature (a phone
-  photo of it on white paper is fine; the app knocks out the background). It is
+  photo of it on white paper is fine; the app knocks out the background). **Crop
+  it close to the writing.** The image is scaled to the height of the signature
+  line, margin and all, so a wide border around the mark shrinks the mark. It is
   placed on the employer signature lines of every packet and the I-9. The
   attendant and all other parties still sign by hand.
 

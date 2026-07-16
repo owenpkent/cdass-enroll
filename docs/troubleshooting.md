@@ -115,6 +115,15 @@ Some are intentional. The 2026 packet's Direct Deposit date shares a PDF
 field with the EVV vendor date, so it is left for hand-dating. Signature
 fields are never filled by design.
 
+**The employer signature prints tiny**
+
+The overlay scales your image to the height of the signature line and scales the
+blank margin with it, so a signature floating in a wide border shrinks to a
+fraction of the line. Re-upload it cropped tight to the writing; roughly 6:1 fills
+a packet line the way a real signature does. This bites hardest on an image
+lifted out of another PDF, which carries that document's placement box as
+padding. Details in [forms.md](forms.md).
+
 **Values look right in the app but the printed PDF shows old data**
 
 Regenerate after editing; PDFs are snapshots. Also confirm you opened the
@@ -138,18 +147,32 @@ flip side of local-only storage. Export a backup after entering real data.
 
 If there is no backup but you still have a packet you generated for that person,
 **Previous packet** in Step 1 reads most of it back: identity, contact, address,
-payment, and rates, plus any Member/employer details still blank. It cannot
-recover the tax, live-in, or work-authorization answers (those are attestations
-and are never imported) or the signature image (it is not in the PDF as data).
+payment, and rates, plus any Member/employer details still blank. It does not
+recover the tax, live-in, or work-authorization answers, which are attestations
+and are never imported, and it does not recover the signature, because it reads
+form fields and the signature is drawn onto the page as an image rather than
+stored in a field.
+
+**Recovering a signature from a packet you already signed**
+
+The signature is not a form field, but it is still embedded in the PDF, so a
+signed packet is a usable source when the browser storage that held it is gone.
+Pull the image out with any PDF tool (with PyMuPDF, find the signature-sized
+image on page 11 and composite it with its soft mask so the transparency
+survives), **crop it to the writing**, flatten it onto white, and re-upload it
+under Your details. Cropping is not optional: see "The employer signature prints
+tiny" above. This works whether the app placed the image or you signed the packet
+in Adobe.
 
 **Moving to a new computer**
 
 Under Your details: Export on the old machine, Import on the new one, then Wipe
 all data on the old machine. The export JSON contains SSNs; transfer it on
-something you control and delete it after importing.
+something you control and delete it after importing. This is the only in-app path
+that carries the **signature image**, since Previous packet cannot.
 
-This is the only path that carries the **signature image**, which lives in
-browser storage and is not recoverable from a generated PDF. If you have already
-moved and the old machine is gone, feed a packet you generated for a past hire
-into **Previous packet** to get the standing details back, and re-upload the
-signature by hand.
+Two other routes exist when the old machine is gone. `public/seed.local.json`
+takes a `signature` key like any other standing detail (a PNG data URL), so a
+seed file can pre-load it on a fresh browser profile, subject to the usual rule
+that the seed only applies when every standing field is still empty. Failing
+that, recover it from a signed packet as above.
