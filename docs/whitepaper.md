@@ -55,8 +55,12 @@ carried to any other form.
    the user's machine: form filling, barcode decoding, and OCR. There is no
    server, no account, and no telemetry. Third-party engines (the barcode and
    OCR WebAssembly modules and the OCR model) are vendored to disk so the page
-   never calls out at runtime, and a Content-Security-Policy header enforces
-   that even if a dependency tried.
+   never calls out at runtime, and a Content-Security-Policy header stops a
+   dependency that tried. State the guarantee precisely, because the precision
+   is what makes it portable: the policy enforces **same origin**, and the
+   origin is the user's own machine. "Nothing leaves the device" is those two
+   facts together, not the header alone. Section 5.2 covers what that means for
+   anyone deploying this somewhere else.
 2. **One data model, many forms.** A single schema is the source of truth for
    every field. The input UI renders from it and the PDF mappings key off it.
    Adding a field is one schema entry plus one line in the relevant mapping.
@@ -304,6 +308,77 @@ template, set named fields, save without flattening) with no UI coupling. The
 schema and the per-form mapping modules port directly; only the rendering and
 storage shells differ.
 
+### 5.2 Reuse without a privacy cost
+
+Reusable software normally means a service, which means a server, which means the
+person's data sitting on someone else's computer. That trade does not apply here,
+and the reason is worth stating plainly: **the artifact that needs to spread
+holds no personal data, and the personal data never needs to move.** A mapping
+entry says `"Attendant physical address, not PO Box"` is the `street` field. That
+is a fact about a government form, not about a person. Blank templates are public
+agency documents. Distributing this pattern means distributing knowledge about
+forms, which carries no privacy weight at all, while the profile stays on the
+machine that created it. Reuse and privacy are only in tension when the reusable
+thing is the data processing. Here it is the form knowledge, so they are not.
+
+Keeping it that way takes care on four points.
+
+**"Same origin" is not the same promise in every deployment.** The policy in
+`index.html` is `default-src 'self'`, which permits same-origin requests and
+nothing else. Served from `127.0.0.1`, same-origin means "nothing leaves this
+machine" and the local-first claim holds exactly. Serve the identical page from a
+domain and `'self'` becomes that server: the same policy now cheerfully permits
+`fetch("/mappings/snap.json")`. Nothing in the header changed and the guarantee
+evaporated. The privacy property is load-bearing on **where the page runs**, not
+on the policy, and reuse is precisely the act of changing where it runs. A hosted
+deployment has to re-earn the guarantee rather than inherit it, by having nothing
+to fetch.
+
+**The leak that matters is metadata, not payload.** Nobody exfiltrates an SSN. A
+host simply learns that an address requested the SNAP mapping, which is the
+inference the person was trying not to publish. A benefits tool that reveals
+which benefit you are applying for has failed at the thing it exists to do, no
+matter how well the fields themselves are protected. The population this serves
+is the one that can least afford that inference.
+
+**Ship mappings, not templates.** This answers the metadata leak and a size
+problem with one decision. CDASS Enroll's build is roughly 43 MB: about 31 MB of
+OCR and barcode engines, 4 MB of OCR model data, and 7 MB for a single blank
+packet. Bundle templates for twenty programs and the weight pushes the design
+toward fetching them on demand, and fetch-on-demand is the leak. But a mapping is
+kilobytes of JSON, so every mapping for a hundred forms fits comfortably in the
+space of one template. Bundle the whole library unconditionally, make no per-form
+request, and there is nothing to leak, because asking for nothing reveals
+nothing. Then let the person bring the blank PDF from the agency: they were going
+to download it anyway, and it discloses nothing to a party that does not already
+know they are a client. It also turns form revisions from a maintenance burden
+into a non-event, since you fill whatever the agency currently distributes and
+the mapping probes field names to confirm it recognises the revision. The costs
+are real and should be stated: working offline from cold stops being free, and a
+revision the mapping does not recognise has to fail loudly rather than quietly.
+Shipping templates for the program you are built for, and accepting
+bring-your-own for the long tail, gets most of both.
+
+**A mapping must be data, not code.** Section 5.0 argues for declarative tables
+because they run backwards and because a non-programmer can author one. The
+stronger reason is security. The moment mappings arrive from outside your own
+repository, a mapping that is a JavaScript module is arbitrary code execution on
+a page holding Social Security numbers, and a community library of such modules
+is a supply-chain attack waiting to be written. A mapping that is pure data can,
+at its worst, put a value in the wrong box. CDASS Enroll's `PACKET2026_TEXT` is
+data-shaped but still lives inside a JS module, so it does not yet clear this
+bar. That is the gap to close before a mapping ever arrives from anywhere but the
+repository itself.
+
+**Where a model is allowed to touch this.** Proposing a mapping from a field dump
+is a good use of a language model and a bad use of the runtime. One rule keeps
+the two compatible: the model runs at authoring time, on the maintainer's
+machine, and reads the field names of a **blank** form. It sees public agency
+structure and never a person's data. Its output is a static table a human
+reviewed and committed. The page gains no network call, the flat and diffable
+discipline survives, and so does the claim that the whole thing can be audited by
+reading it.
+
 ## 6. Playbook: adding a new form
 
 This is the concrete, repeatable process, the same one used to support each
@@ -352,6 +427,27 @@ CDASS template.
   browser storage unencrypted on the device; a passphrase-encrypted store is the
   natural upgrade where the threat model warrants it. Generated PDFs contain the
   same sensitive data and should be stored or shredded accordingly.
+- **Encryption at rest stops being optional once the operator is not the
+  subject.** This is the sharpest limit on reuse, and it is a change of threat
+  model rather than of code. Someone filling in their own attendant's paperwork
+  on their own laptop is making a defensible trade with unencrypted local
+  storage: the data is theirs, on their machine, and a server would be worse. An
+  advocate carrying fifty clients on a shared office desktop is running an
+  unencrypted database of other people's Social Security numbers behind a shared
+  login. Same code, same storage, completely different exposure. Any deployment
+  where one person holds another's data needs the encrypted store first, not as
+  an upgrade.
+- **The one-person design is a real ceiling.** The profile is a single
+  localStorage key, deliberately, because the tool does one hire at a time. The
+  advocate and caseworker use cases are inherently multi-client, and that is a
+  redesign rather than a feature: multiple profiles mean isolation between them,
+  a way to select one safely, and a retention policy per client.
+- **The likeliest real-world leak is the output, not the app.** A generated PDF
+  carries every SSN the form asked for, lands in the Downloads folder, and then
+  gets emailed, because emailing it is what the process asks people to do. No
+  amount of local-first architecture touches that. At scale, telling people
+  plainly what is in the file they just made, and offering to clear the data
+  behind it, is the highest-value privacy work in the tool.
 - **OCR is approximate.** Structured sources should always be preferred, and the
   human verification step is what makes OCR safe to offer at all.
 - **Forms and jurisdictions vary.** State forms differ and revise on their own
@@ -365,6 +461,15 @@ requests, and keeps no account is one a caseworker or family member can adopt
 without asking anyone to surrender personal data. It works offline, costs
 almost nothing to run, has no breach surface, and can be audited by reading the
 page source. Those properties are worth as much as the time the autofill saves.
+
+Two qualifications keep that from being a slogan. Local-first is the right
+default, not a finished security model: it removes the breach surface of a
+server and leaves the device, which is why Section 7 puts encryption at rest
+ahead of any deployment where one person holds another's data, the caseworker
+case included. And "makes no network requests" is a property of running the page
+from the user's own machine, not of the policy that permits it, so Section 5.2 is
+the price of extending this to anyone who did not clone the repository. The
+argument for local-first is strongest when it is made precisely.
 
 ## 9. Conclusion
 
