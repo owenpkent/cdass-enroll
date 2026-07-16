@@ -427,16 +427,25 @@ CDASS template.
   browser storage unencrypted on the device; a passphrase-encrypted store is the
   natural upgrade where the threat model warrants it. Generated PDFs contain the
   same sensitive data and should be stored or shredded accordingly.
-- **Encryption at rest stops being optional once the operator is not the
-  subject.** This is the sharpest limit on reuse, and it is a change of threat
-  model rather than of code. Someone filling in their own attendant's paperwork
-  on their own laptop is making a defensible trade with unencrypted local
-  storage: the data is theirs, on their machine, and a server would be worse. An
-  advocate carrying fifty clients on a shared office desktop is running an
-  unencrypted database of other people's Social Security numbers behind a shared
-  login. Same code, same storage, completely different exposure. Any deployment
-  where one person holds another's data needs the encrypted store first, not as
-  an upgrade.
+- **Once the operator is not the subject, the threat model changes, and
+  encryption at rest is one prerequisite among several rather than the whole
+  answer.** Someone filling in their own attendant's paperwork on their own
+  laptop is making a defensible trade with unencrypted local storage: the data
+  is theirs, on their machine, and a server would be worse. An advocate carrying
+  fifty clients on a shared office desktop is running a database of other
+  people's Social Security numbers. Same code, same storage, completely
+  different exposure. Two things flip. First, the operator can no longer
+  unilaterally consent to plaintext storage of someone else's SSN, so it becomes
+  a duty question, not a personal risk trade. Second, a passphrase-encrypted
+  store (WebCrypto) becomes worthwhile, but for a bounded set of vectors:
+  offline access to the stored bytes through theft, a disk image, a backup, or a
+  separate OS account. It does not defend a live unlocked session, the derived
+  key in memory, the plaintext seed file on disk, or the output PDF, and a
+  single encrypted blob still gives no isolation between clients. So the
+  operator-holds-others'-data case needs per-client isolation, access control at
+  the OS account, and disciplined output handling *alongside* the encrypted
+  store, not the encrypted store as a substitute for them. See
+  [threat-model.md](threat-model.md) for the vector-by-vector accounting.
 - **The one-person design is a real ceiling.** The profile is a single
   localStorage key, deliberately, because the tool does one hire at a time. The
   advocate and caseworker use cases are inherently multi-client, and that is a
@@ -464,9 +473,9 @@ page source. Those properties are worth as much as the time the autofill saves.
 
 Two qualifications keep that from being a slogan. Local-first is the right
 default, not a finished security model: it removes the breach surface of a
-server and leaves the device, which is why Section 7 puts encryption at rest
-ahead of any deployment where one person holds another's data, the caseworker
-case included. And "makes no network requests" is a property of running the page
+server and leaves the device, which is why Section 7 treats encryption at rest,
+per-client isolation, and output handling together as the price of any
+deployment where one person holds another's data, the caseworker case included. And "makes no network requests" is a property of running the page
 from the user's own machine, not of the policy that permits it, so Section 5.2 is
 the price of extending this to anyone who did not clone the repository. The
 argument for local-first is strongest when it is made precisely.
