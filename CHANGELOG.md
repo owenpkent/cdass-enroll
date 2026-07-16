@@ -53,8 +53,11 @@ below as 0.1.0, and work since then sits under Unreleased.
   fetched names the benefit you are applying for), so ship the whole mapping
   library and let people bring the blank form; and a mapping must be data
   rather than a JS module, because an imported module is code execution on a
-  page holding SSNs. Section 7 adds the limits reuse exposes: encryption at
-  rest is a prerequisite, not an upgrade, once the operator is not the subject.
+  page holding SSNs. Section 7 adds the limits reuse exposes: once the operator
+  is not the subject, encryption at rest is one prerequisite among several (it
+  covers offline access to the stored bytes and the consent point, not a live
+  session, the in-memory key, the seed file, or the output PDF), documented
+  vector by vector in `docs/threat-model.md`.
 - **Editing completed PDFs.** `docs/editing-completed-pdfs.md` documents how to
   surgically change a value (a rate, a date) on an already-filled Adobe Fill &
   Sign PDF outside the app: redact the old text only so table borders survive,
