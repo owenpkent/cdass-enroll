@@ -20,7 +20,11 @@ export function setText(form, name, value) {
   }
 }
 
-export function check(form, name, on = true) {
+// `on` deliberately has no default. Guards at the call sites read like
+// `p.fullTimeStudent && age < 18`, which evaluates to undefined when the key is
+// absent from the profile, and a default of `true` turns that missing data into
+// a checked attestation. Callers that always mean "check it" pass true.
+export function check(form, name, on) {
   if (!on) return;
   try {
     form.getCheckBox(name).check();
@@ -40,7 +44,7 @@ export function selectButton(form, name, option) {
   } catch {
     /* not a radio group */
   }
-  check(form, name);
+  check(form, name, true);
 }
 
 /** Find a field by the tail of its fully qualified name (for XFA-style names). */
@@ -57,6 +61,21 @@ export function fmtDate(iso) {
 export function fmtSsn(ssn) {
   const d = (ssn ?? "").replace(/\D/g, "");
   return d.length === 9 ? `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}` : ssn ?? "";
+}
+
+/**
+ * Inverse of fmtDate, for reading a filled form back: "06/06/1986" -> "1986-06-06".
+ * Anything that is not exactly mm/dd/yyyy returns "" rather than echoing junk
+ * into a date input, since a filled PDF is typed by hand and holds anything.
+ */
+export function isoDate(us) {
+  const m = String(us ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[1]}-${m[2]}` : "";
+}
+
+/** Inverse of fmtSsn: "123-45-6789" -> "123456789". The profile stores digits. */
+export function ssnDigits(ssn) {
+  return String(ssn ?? "").replace(/\D/g, "");
 }
 
 /**

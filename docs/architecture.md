@@ -73,10 +73,16 @@ src/extract/aamva.js     PDF417 payload -> profile fields (whitelisted AAMVA
 src/extract/mrz.js       Passport TD3 MRZ parser with check-digit validation
 src/extract/ssncard.js   SSN + name out of OCR text
 src/extract/dlfront.js   License-front OCR fallback: date of birth + address
+src/extract/filledpacket.js
+                         A filled packet PDF -> profile/employer, by running
+                         packet2026's PACKET2026_TEXT table backwards. No OCR:
+                         it reads the AcroForm. Skips every attestation
 src/fill/util.js         Tolerant pdf-lib helpers (missing field = console
-                         warning, not a crash), date/SSN formatting, signature
-                         image overlay
-src/fill/packet2026.js   Mapping for the current PPL packet (+ employer signature)
+                         warning, not a crash), date/SSN formatting and their
+                         inverses, signature image overlay
+src/fill/packet2026.js   Mapping for the current PPL packet (+ employer
+                         signature). Exports PACKET2026_TEXT, the one table both
+                         filling and importing read
 src/fill/i9.js           I-9 Section 1 + 2 (shared by the packet and standalone)
 src/fill/w4.js           W-4 with 2020-2023 vs 2024+ layout detection
 scripts/setup-assets.mjs Vendors WASM/OCR assets at install time

@@ -19,8 +19,8 @@ What gets filled:
 | 2-7 | Attendant Enrollment and Agreement | name, DOB, SSN, addresses, contact, relationship to Member, printed names, signature dates |
 | 8-9 | Direct Deposit | bank info as one digit per box; paper-check address block when direct deposit is off |
 | 10 | Services and Rates | new-service vs rate-change, CDASS standard + emergency rate into the table the Member's program selects, signature dates |
-| 11 | Tax Exemptions | relation-to-employer and age-gated attestations |
-| 13-15 | EVV Attestation of Exemption | only when the profile marks the attendant as live-in |
+| 11 | Tax Exemptions | relation-to-employer (defaults to "not a relative") and age-gated attestations |
+| 12-17 | EVV Attestation of Exemption | six printed pages, but fillable fields only on 13-15; filled only when the profile marks the attendant as live-in |
 | 19-22 | USCIS I-9 | Section 1 + Section 2 documents (via `src/fill/i9.js`) |
 
 The employer signature lines on pages 7, 10, 11 have no form field, so when
@@ -71,6 +71,24 @@ Quirks of the original PDF (not bugs in this app):
 - **Age-gated attestations.** "I am under 18 years old and a full-time
   student", "...under the age of 21" etc. are only checked when the date of
   birth confirms the age, regardless of the profile toggles.
+- **Tax Exemptions Part 1 has a default, unlike every other attestation.** The
+  form requires exactly one of its four statements, so leaving it blank is not
+  a conservative choice, it is an incomplete form that PPL bounces. The profile
+  field `relationToEmployer` therefore defaults to `none`, which checks "I am
+  not the spouse, parent, or child of the employer". **Hiring a relative means
+  changing that dropdown**, or the packet gives up a FICA/FUTA exemption the
+  attendant is entitled to and has them sign a statement that isn't true.
+- **`check()` takes no default for its `on` argument.** Guards read like
+  `p.fullTimeStudent && years < 18`, which is `undefined` (not `false`) when the
+  key is missing from the profile. `check(form, name, on = true)` turned that
+  missing data into a checked box, so a sparse profile silently attested "I am
+  under 18 years old". `blankProfile()` masks this in the app because it seeds
+  every checkbox to `false`; anything calling the fill modules directly does not
+  get that protection. Pass `true` explicitly when you mean "always check".
+- **Part 1 statement 2 has three sub-conditions (a/b/c) that are never filled.**
+  When `relationToEmployer` is `parent`, the qualifying grandchild-care boxes go
+  to PPL blank because the schema collects nothing that could drive them. Only
+  affects employers hiring their own parent.
 
 ## CO-CDASS-Attendant-Packet-2025 (removed)
 

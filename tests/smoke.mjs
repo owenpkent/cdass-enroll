@@ -349,6 +349,95 @@ expect("standalone I-9 filled and saved", i9Bytes.length > 50000, String(i9Bytes
   expect("tax exemptions: the same toggles stay blank for an adult", names.every((n) => !old[n]), JSON.stringify(old));
 }
 
+// ---- Reading a filled packet back in ----
+// The round trip is the contract that keeps PACKET2026_TEXT honest: fill writes
+// through the table, import reads through it, so a field name that drifts in one
+// direction fails here rather than silently importing nothing.
+{
+  const { readFilledPacket } = await import("../src/extract/filledpacket.js");
+  const { PACKET2026_TEXT } = await import("../src/fill/packet2026.js");
+  const back = await readFilledPacket(p26);
+
+  const drifted = PACKET2026_TEXT.map((f) => {
+    const want = (f.on === "emp" ? employer : profile)[f.key] ?? "";
+    const got = (f.on === "emp" ? back.employer : back.profile)[f.key] ?? "";
+    return want === got ? null : `${f.key}: ${JSON.stringify(want)} -> ${JSON.stringify(got)}`;
+  }).filter(Boolean);
+  expect("import: every shared-table field round-trips", drifted.length === 0, drifted.join("; "));
+
+  expect(
+    "import: name, relationship, payment and rates come back",
+    back.profile.first === "Jane" &&
+      back.profile.middle === "Marie" && // the I-9 holds only "M"; the composite line has the rest
+      back.profile.last === "Doe" &&
+      back.profile.relationship === "nonrelative" &&
+      back.profile.contactPreference === "email" &&
+      back.profile.allowText === "yes" &&
+      back.profile.mailingSame === true &&
+      back.profile.directDeposit === true &&
+      back.profile.accountType === "checking" &&
+      back.profile.routing === "102000021" &&
+      back.profile.account === "9876543210" &&
+      back.profile.rateStandardCdass === "20.00" &&
+      back.employer.memberFirst === "Owen" &&
+      back.employer.memberLast === "Kent",
+    JSON.stringify(back.profile)
+  );
+
+  // Attestations are the signer's word, not data. Importing them would re-assert
+  // an old form's statement onto a new one without the human saying so.
+  const attestations = ["relationToEmployer", "fullTimeStudent", "primaryJob", "citizenship", "liveIn"];
+  expect(
+    "import: attestations are never imported",
+    attestations.every((k) => !(k in back.profile)),
+    JSON.stringify(Object.keys(back.profile))
+  );
+
+  let rejected = false;
+  try {
+    await readFilledPacket(w4Bytes);
+  } catch {
+    rejected = true;
+  }
+  expect("import: a PDF that is not this packet is rejected", rejected);
+}
+
+// Part 1 of the Tax Exemptions Form requires one of its four statements, so a
+// blank Part 1 is an incomplete form. A profile straight from the schema has to
+// answer it without the user remembering to open the dropdown.
+{
+  const { blankProfile } = await import("../src/schema.js");
+  const fresh = { ...blankProfile(), first: "Jane", last: "Doe", dob: "1986-02-14" };
+  const part1 = [
+    "I am the spouse of the employer",
+    "I am the parent of the employer",
+    "I am the biological or legally adopted child of the employer and I am under the age of 21",
+    "I am not the spouse parent or child of the employer",
+  ];
+  const f = await readFields(await fillPacket2026(packet2026Src, fresh, employer, opts), part1);
+  expect("tax exemptions: a fresh profile answers Part 1 'not a relative'", f[part1[3]] === true, JSON.stringify(f));
+  expect(
+    "tax exemptions: exactly one Part 1 statement is ever checked",
+    part1.filter((n) => f[n]).length === 1,
+    JSON.stringify(f)
+  );
+}
+
+// An absent profile key makes a guard like `p.fullTimeStudent && age < 18`
+// evaluate to undefined. check() must read that as "leave it alone"; when its
+// `on` parameter defaulted to true, undefined attested "I am under 18 years
+// old" on an adult's signed form.
+{
+  const sparse = { first: "Jane", last: "Doe", dob: "1986-02-14", relationToEmployer: "none" };
+  const names = [
+    "I am under 18 years old and I am a fulltime student",
+    "I am under 18 years old and this job of performing household services (respite) is my primary job",
+    "Send my pay stub in the mail",
+  ];
+  const f = await readFields(await fillPacket2026(packet2026Src, sparse, employer, opts), names);
+  expect("check(): a guard that is undefined leaves the box blank", names.every((n) => !f[n]), JSON.stringify(f));
+}
+
 // ---- W-4 values (fields are XFA-style suffixes, so match by tail) ----
 {
   const form = (await PDFDocument.load(w4Bytes)).getForm();

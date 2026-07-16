@@ -107,6 +107,10 @@ label.field input:disabled, label.field select:disabled { background: #eef1f4; c
   background: #fbfcfe;
 }
 .scanbtn:hover { border-color: var(--accent); }
+/* The import tile sits on its own row: without this it is the only item there
+   and flex-grow stretches it edge to edge, which reads as a layout bug. */
+.scanbtn.narrow { flex: 0 1 260px; }
+.scanrow + .orline { margin: 0.75rem 0 0.35rem; }
 .scanbtn .big { font-size: 1.4rem; display: block; }
 .scanbtn small { color: var(--muted); display: block; margin-top: 0.2rem; }
 .scanbtn input { display: none; }

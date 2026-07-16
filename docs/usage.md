@@ -31,10 +31,18 @@ Everything saves as you type. If `public/seed.local.json` exists (it does on
 the original machine), these fields arrive pre-filled the first time the app
 runs in a browser profile. Click **← Back to enrollment** when done.
 
-## Step 1: Upload identification documents
+## Step 1: Upload documents
 
 The scan card is at the top of the page. Use a phone photo or any image file:
 
+- **Previous packet**: if you already have a filled packet for this person (a
+  re-hire, a correction, or a packet from your old computer), this is the
+  best input available. The app reads the values out of the PDF's own form
+  fields, so nothing is guessed. It fills identity, contact, address, payment,
+  and rates, plus any Member/employer details you have not set yet, and it never
+  overwrites standing details you already entered. It does not import the tax,
+  live-in, or work-authorization answers: those are attestations the signer
+  makes, so set them yourself each time.
 - **License barcode**: photograph the **back** of the card. The app reads
   the PDF417 barcode (the wide striped rectangle), which contains their full
   name, address, date of birth, license number, and expiration exactly as the

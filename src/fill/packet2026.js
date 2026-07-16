@@ -9,21 +9,55 @@
 // - The direct-deposit attendant signature date field ("Date") is shared with
 //   the FMS-vendor signature date on the EVV exemption form, so we leave it
 //   blank; the attendant dates it by hand when signing.
-// - The EVV Attestation of Exemption (pages 13-15) is only relevant for
+// - The EVV Attestation of Exemption (pages 12-17, fields only on 13-15) is
+//   only relevant for
 //   live-in caregivers; we fill it only when the profile says live-in, and
 //   its City/State/ZIP fields are shared with the I-9 employee address
 //   (consistent, since a live-in attendant shares the Member's address).
 
 import { PDFDocument } from "pdf-lib";
-import { setText, check, selectButton, fmtDate, fmtSsn, overlaySignature } from "./util.js";
+import { setText, check, selectButton, fmtDate, fmtSsn, isoDate, ssnDigits, overlaySignature } from "./util.js";
 import { fillI9 } from "./i9.js";
+
+// The packet's text fields that map to exactly one profile ("p") or employer
+// ("emp") key, directly or through a reversible transform. Both directions read
+// this table: fillPacket2026 writes these fields, and src/extract/filledpacket.js
+// reads a filled packet back through it, so the field name is written down once.
+//
+// Deliberately not in here, because they do not invert cleanly and each
+// direction states them explicitly instead:
+// - composites built from several keys (the "first, middle and last" name lines;
+//   the reader recovers the name from the I-9's separate first/middle/last boxes)
+// - anything gated on a condition (the mailing block, direct deposit, the
+//   live-in EVV pages, which of the three rate tables applies)
+// - every checkbox, because a checkbox here asserts a fact
+export const PACKET2026_TEXT = [
+  // Repeating headers
+  { field: "Member PPL ID", on: "emp", key: "memberPplId" },
+  { field: "Attendant PPL ID", on: "p", key: "pplId" },
+  // Page 2: enrollment
+  { field: "Attendant date of birth", on: "p", key: "dob", to: fmtDate, from: isoDate },
+  { field: "Attendant maiden or previous name", on: "p", key: "maidenOrPrevious" },
+  { field: "Attendant Social Security Number", on: "p", key: "ssn", to: fmtSsn, from: ssnDigits },
+  { field: "Attendant physical address, not PO Box", on: "p", key: "street" },
+  { field: "Attendant physical address 2 Apt Ste or other", on: "p", key: "street2" },
+  { field: "Attendant physical address city", on: "p", key: "city" },
+  { field: "Attendant physical address State", on: "p", key: "state" },
+  { field: "Attendant physical address Zip Code", on: "p", key: "zip" },
+  { field: "Attendant physical address county", on: "p", key: "county" },
+  { field: "Attendant email", on: "p", key: "email" },
+  { field: "Attendant cell phone", on: "p", key: "cellPhone" },
+  { field: "Attendant home or other phone", on: "p", key: "otherPhone" },
+  { field: "Attendant primary language", on: "p", key: "primaryLanguage" },
+  { field: "Best contact times for the attendant", on: "p", key: "bestContactTimes" },
+];
 
 // Page 10 carries three parallel rate tables and the rate goes in exactly one:
 // Table 1 (CDASS) for most members, Table 2 for SLS waiver members, Table 3 for
 // Community First Choice. Which one is a property of the Member, not the
 // attendant, so it is keyed by emp.memberProgram; "" (unset) means Table 1,
 // where a member on any waiver other than SLS belongs.
-const RATE_TABLE = {
+export const RATE_TABLE = {
   "": { standard: "CDASS Standard Rate", emergency: "CDASS Emergency Rate" },
   sls: { standard: "SLS CDASS Standard Rate", emergency: "SLS CDASS Emergency Rate" },
   cfc: { standard: "CFC CDASS Standard Rate", emergency: "CFC CDASS Emergency Rate" },
@@ -50,32 +84,26 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
   const employerName = [emp.employerFirst, emp.employerLast].filter(Boolean).join(" ");
   const memberName = [emp.memberFirst, emp.memberLast].filter(Boolean).join(" ");
 
-  // ---- Repeating headers ----
+  // ---- Every field that maps to a single key, both directions ----
+  for (const f of PACKET2026_TEXT) {
+    const v = (f.on === "emp" ? emp : p)[f.key];
+    setText(form, f.field, f.to ? f.to(v) : v);
+  }
+
+  // ---- Repeating headers (composites) ----
   setText(form, "Member Name: first and last", memberName);
   setText(form, "Member Name, first and last", memberName);
-  setText(form, "Member PPL ID", emp.memberPplId);
   setText(form, "Employer Name: first and last", employerName);
   setText(form, "Employer Name, first and last", employerName);
-  setText(form, "Attendant PPL ID", p.pplId);
 
   // ---- Page 2: Enrollment ----
   setText(form, "Attendant Name: first, middle and last", fullName);
   setText(form, "Attendant Name: first and last", firstLast);
-  setText(form, "Attendant date of birth", fmtDate(p.dob));
-  setText(form, "Attendant maiden or previous name", p.maidenOrPrevious);
-  setText(form, "Attendant Social Security Number", fmtSsn(p.ssn));
 
   check(form, "Spouse", p.relationship === "spouse");
   check(form, "Parent", p.relationship === "parent");
   check(form, "Other Relative", p.relationship === "relative");
   check(form, "NonRelative", p.relationship === "nonrelative");
-
-  setText(form, "Attendant physical address, not PO Box", p.street);
-  setText(form, "Attendant physical address 2 Apt Ste or other", p.street2);
-  setText(form, "Attendant physical address city", p.city);
-  setText(form, "Attendant physical address State", p.state);
-  setText(form, "Attendant physical address Zip Code", p.zip);
-  setText(form, "Attendant physical address county", p.county);
 
   if (p.mailingSame) {
     check(form, "Check the box if the address where you live is the same as your mailing address", true);
@@ -87,15 +115,10 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
     setText(form, "Attendant mailing address Zip Code", p.mailZip);
   }
 
-  setText(form, "Attendant email", p.email);
-  setText(form, "Attendant cell phone", p.cellPhone);
-  setText(form, "Attendant home or other phone", p.otherPhone);
-  setText(form, "Attendant primary language", p.primaryLanguage);
   check(form, "The attendant prefers to be contacted by email", p.contactPreference === "email");
   check(form, "The attendant prefers to be contacted by cell phone", p.contactPreference === "cell");
   check(form, "The attendant prefers to be contacted by home phone", p.contactPreference === "home");
   check(form, "The attendant prefers to be contacted by mail", p.contactPreference === "mail");
-  setText(form, "Best contact times for the attendant", p.bestContactTimes);
   if (p.allowText === "yes") selectButton(form, "Do you want PPL to text you: Yes", "Yes");
   if (p.allowText === "no") selectButton(form, "Do you want PPL to text you: No", "No");
 
@@ -161,7 +184,8 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
     p.primaryJob && years != null && years < 18
   );
 
-  // ---- Pages 13-15: EVV Attestation of Exemption (live-in caregivers only) ----
+  // ---- Pages 12-17: EVV Attestation of Exemption (live-in caregivers only) ----
+  // The form runs to six printed pages but only 13-15 carry fields.
   if (p.liveIn === "fullTime" || p.liveIn === "extended") {
     setText(form, "First Name", emp.memberFirst);
     setText(form, "Last Name", emp.memberLast);

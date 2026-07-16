@@ -141,6 +141,11 @@ export const PROFILE_SECTIONS = [
         key: "relationToEmployer",
         label: "Relation to the employer (tax exemptions)",
         type: "select",
+        // Part 1 of the Tax Exemptions Form requires exactly one of its four
+        // statements, so blank is never a valid answer. It defaults to the one
+        // that is true of any attendant who is not family; change it when
+        // hiring a relative, or the packet understates the exemption.
+        default: "none",
         options: [
           ["", ""],
           ["spouse", "Spouse of the employer"],

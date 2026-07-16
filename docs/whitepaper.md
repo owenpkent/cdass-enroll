@@ -132,10 +132,20 @@ Not all document data is equally easy to capture. The pattern prefers exact
 sources and treats everything else as assistive, with the human as the final
 check.
 
+- **A form the person already filled.** The best source is not a document at
+  all. A filled AcroForm PDF is a name-to-value dictionary in the issuing
+  agency's own vocabulary, holding values a human already checked and signed.
+  Reading it needs no OCR, no barcode, no check digit, and no image. Any program
+  whose forms are fillable PDFs gets its highest-quality input for the cost of
+  running an existing mapping backwards, which is why the pattern should treat
+  "import a previous form" as a first-class capture source rather than an
+  afterthought. Renewals are the obvious case: last year's form is this year's
+  answer sheet.
 - **Structured and exact.** The PDF417 barcode on the back of a US driver's
   license is the DMV's own machine record in the AAMVA format. One decode
   yields name, address, date of birth, and license details exactly. This is the
-  gold standard: prefer it whenever a structured source exists.
+  gold standard among physical documents: prefer it whenever a structured source
+  exists.
 - **Semi-structured with validation.** A passport's machine-readable zone is
   two fixed-format lines with check digits. The parser validates each field's
   check digit and flags any value that fails, rather than silently filling a
@@ -185,6 +195,51 @@ Program specifics still require per-form analysis: which fields a given state's
 form exposes, how it gates conditional pages, and which attestations it asks
 for. That analysis produces a mapping module. The surrounding machinery is
 reused as-is.
+
+### 5.0 Forms as input: filling new forms from old ones
+
+The natural next question is whether people can feed in the forms they already
+have and get new ones out. They can, and the shape of the answer matters more
+than the code.
+
+**Go form to profile to form, never form to form.** A direct transfer between two
+forms is N-squared mappings for N forms, and each new form makes every existing
+one more work. Routing through the profile that already exists keeps it at N: a
+filled form is just another capture source pointed at the same hub, and a new
+form is just another mapping. The hub is what makes reuse compound.
+
+**A mapping becomes a table, and tables run backwards.** A write-only mapping
+(`setField("exact name", value)`) can only fill. Split it into a declarative
+table of the fields that map to exactly one key, and imperative code for the
+rest, and the table reads in both directions for free. CDASS Enroll does this
+today: `PACKET2026_TEXT` is one list of field-name-to-key pairs with a reversible
+transform each, `fillPacket2026` writes through it, and
+`src/extract/filledpacket.js` reads a filled packet back through it. A round-trip
+test is the contract that keeps the two directions honest.
+
+The split lands on a natural seam. What will not invert cleanly is composites
+built from several keys, anything gated on a condition, and every checkbox. That
+last one is the important half: **a checkbox on these forms is almost always an
+attestation, and an attestation is exactly what must never be imported.** Copying
+"I am not the spouse, parent, or child of the employer" from an old form onto a
+new one re-asserts the signer's word without the signer. So the fields that are
+hard to invert are the fields you are obliged to leave alone anyway, and the
+conservative rule from principle 5 falls out of the architecture rather than
+being bolted onto it. Identity, address, contact, payment, and rates import;
+statements do not.
+
+**The ceiling is authoring, not engineering.** Reading and writing forms is
+solved. What limits this to one packet is that each new form needs a developer to
+write a mapping. Two moves raise that ceiling without touching the privacy model:
+make mappings data rather than code, so someone who is not a programmer can
+author one; and use a model to *propose* a mapping from a field dump at authoring
+time, on the maintainer's machine, reviewed by a human and committed as a static
+table. The runtime never gains a network call, and the flat, diffable discipline
+survives intact. For a form nobody has mapped, local fuzzy matching of field
+labels against the schema can propose values, but proposals must be shown and
+confirmed, never silently applied. Section 5.1's advocate-editable rule library
+is the same idea arriving from the other direction, and it is the right model for
+who should own a mapping at scale.
 
 ### 5.1 A live sibling: Coverage Compass (the CCDC Medicaid tool)
 
@@ -329,6 +384,7 @@ already built.
 | Data model | `src/schema.js` (sections and fields; UI and mappings derive from it) |
 | Capture: barcode | `src/extract/aamva.js` (AAMVA PDF417 from the license back) |
 | Capture: OCR | `src/extract/mrz.js`, `ssncard.js`, `dlfront.js` (passport, SS card, license front) |
+| Capture: a previously filled form | `src/extract/filledpacket.js` (AcroForm read back through the fill table; attestations skipped) |
 | Capture: orchestration | `src/extract/scanner.js` (image enhancement, digit-only pass, crop) |
 | Fill: per-form mapping | `src/fill/packet2026.js`, `w4.js`, shared `i9.js` |
 | Fill: tolerant helpers | `src/fill/util.js` (missing field warns, never throws) |
