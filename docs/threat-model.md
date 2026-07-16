@@ -4,8 +4,13 @@ This doc exists to keep one claim honest: *encryption at rest becomes necessary
 once the operator is not the subject.* That is true but partial. Encryption at
 rest defends a specific, bounded set of vectors. This page enumerates the
 assets, the deployment modes, and which mitigation actually covers which vector,
-so that "add a passphrase-encrypted store" is never mistaken for "the
-multi-client case is now safe."
+so that the passphrase-encrypted store (now built, see below) is never mistaken
+for "the multi-client case is now safe."
+
+The passphrase store described here is **implemented and opt-in**: ⚙ Your
+details → "Protect saved data with a passphrase." The sections below mark what
+it does and does not cover; that scoping is the reason it is one prerequisite
+among several, not the whole answer.
 
 It is a design and reasoning aid, not a compliance attestation.
 
@@ -13,11 +18,11 @@ It is a design and reasoning aid, not a compliance attestation.
 
 | Asset | Where it lives today | Sensitivity |
 | --- | --- | --- |
-| Person profile (name, DOB, address, **SSN**, bank/income) | one `localStorage` key, `JSON.stringify`'d in the clear ([src/store.js](../src/store.js)) | High |
-| Employer details | `localStorage`, in the clear ([src/store.js](../src/store.js)) | Medium |
+| Person profile (name, DOB, address, **SSN**, bank/income) | one `localStorage` key ([src/store.js](../src/store.js)); plaintext by default, an AES-GCM envelope when the passphrase option is on | High |
+| Employer details | same `localStorage` store; plaintext or encrypted with the profile | Medium |
 | Seed file | `public/seed.local.json`, plaintext on disk, gitignored, auto-seeds empty settings at startup | High |
 | Generated PDFs | Downloads folder, plaintext, every SSN the form asked for | High |
-| Derived key + decrypted profile (only if an encrypted store is added) | JS heap while the app is open; can reach swap/hibernation | High |
+| Derived key + decrypted profile (when encryption is on and unlocked) | JS heap while the app is open; can reach swap/hibernation | High |
 
 The last three are the ones an encryption-at-rest change tends to forget.
 
@@ -84,23 +89,39 @@ file, or the output PDF.
 - Provide isolation. One encrypted blob for fifty clients is one unlock away
   from all fifty. Isolation between clients is a separate, structural change.
 
-## Mechanism notes, if it gets built
+## Mechanism, as implemented
 
-- **KDF.** WebCrypto (`crypto.subtle`) gives PBKDF2 natively but not Argon2 or
-  scrypt. A human passphrase guarding SSNs is an offline-cracking target and
-  wants a memory-hard KDF; that means shipping WASM (feasible here, since the
-  app already vendors WASM for OCR, but it is a real dependency, not a
-  `crypto.subtle` one-liner). If PBKDF2 is used, iteration count should be as
-  high as the slowest supported machine tolerates, and revisited over time.
-- **Cipher.** AES-GCM with a per-record random IV is the straightforward choice
-  and is native to WebCrypto.
-- **Key custody is the whole problem.** The passphrase must be stored nowhere,
-  so the user retypes it each session. The moment the key or passphrase is
-  cached in `localStorage`/`sessionStorage` for convenience, plaintext at rest
-  is back with extra steps. Session-only in-memory custody with an explicit lock
-  is the only custody that keeps the property.
-- **CSP stays.** Nothing here loosens the no-network posture in
-  [index.html](../index.html); all crypto is local.
+See [src/crypto/vault.js](../src/crypto/vault.js) and [src/store.js](../src/store.js).
+
+- **KDF: Argon2id via `hash-wasm`**, m=65536 (64 MiB), t=3, p=1 — memory-hard
+  and above the OWASP minimum (19 MiB / t=2). WebCrypto natively offers only
+  PBKDF2 among password KDFs, which is not memory-hard and far cheaper to crack
+  offline on GPU/ASIC; a human passphrase guarding SSNs is exactly the
+  offline-cracking target where memory-hardness matters. `hash-wasm`'s Argon2 is
+  single-threaded (no SharedArrayBuffer, no cross-origin-isolation headers) and
+  inlines its WASM as base64, so there is no runtime fetch. The params live in
+  each vault's envelope, so they can be raised later and re-keying rewrites
+  under the new set.
+- **Cipher: AES-256-GCM** (WebCrypto), fresh random 96-bit IV per save, 128-bit
+  salt per vault stored in the clear. GCM (key, IV) reuse is catastrophic; a new
+  IV per save avoids it trivially.
+- **Wrong-passphrase check.** A fixed marker is encrypted under the key when the
+  vault is created; unlock decrypts it and treats a GCM auth-tag failure as
+  "wrong passphrase." No passphrase hash is stored (that would be a second,
+  weaker offline-crackable target).
+- **Key custody.** The Argon2 output is imported as a non-extractable
+  `CryptoKey` (`exportKey` throws), held only in memory and dropped on lock or
+  tab close; the passphrase is retyped each session. This is the strongest
+  handle a browser offers, but it is best-effort: browsers cannot `mlock` the
+  key or zero immutable Strings, so heap/swap and any script running in the
+  origin (XSS) remain out of scope. The no-network CSP is what carries that
+  live surface, which is why it is load-bearing, not decorative.
+- **Passphrase-strength floor.** Entropy dominates the KDF (a linear multiplier)
+  entirely, so the UI refuses weak passphrases and steers toward several random
+  words. This is the single biggest real-world lever.
+- **CSP unchanged.** `'wasm-unsafe-eval'` was already present for the OCR/barcode
+  WASM, and it permits compiling embedded bytes, not network access. Nothing
+  here loosens the no-network posture in [index.html](../index.html).
 
 ## Prerequisites for the operator-holds-others'-data case
 
@@ -112,7 +133,8 @@ Encryption at rest is on this list, not above it:
 2. **OS-level access control.** Separate OS accounts, screen lock, no shared
    login. This is where the live-session vectors are actually addressed.
 3. **Encrypted store with session-only key custody.** For the offline-bytes
-   vectors, and for the consent point.
+   vectors, and for the consent point. *Built* (opt-in), per the mechanism
+   above. The remaining items are what it does not, by itself, provide.
 4. **Seed-path cleanup.** No plaintext `seed.local.json` equivalent in a
    multi-client deployment.
 5. **Output handling.** Tell the operator exactly what is in each generated PDF,

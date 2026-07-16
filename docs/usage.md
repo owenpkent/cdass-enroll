@@ -135,5 +135,22 @@ printing.
 - Anything you keep still auto-clears after the retention period (30 days
   since last edit by default, adjustable under ⚙ Your details). Your standing
   details persist and re-seed.
-- ⚙ Your details can export a JSON backup before the data expires. Keep it
-  somewhere encrypted if you keep it at all.
+- ⚙ Your details can export a JSON backup before the data expires. The export
+  is plaintext even when at-rest encryption is on, so keep it somewhere
+  encrypted if you keep it at all.
+
+## Passphrase encryption (optional)
+
+- Under ⚙ Your details, **Protect saved data with a passphrase** encrypts the
+  saved person and standing details at rest. Choose a passphrase of at least
+  four random words; there is no recovery if you lose it.
+- Once on, opening the app shows an **unlock screen**. Enter the passphrase to
+  decrypt for the session. Closing the tab re-locks it; **Lock now** re-locks
+  without closing.
+- **Change passphrase** re-keys the stored data; **Turn off encryption** writes
+  it back as plaintext. The auto-clear retention period keeps working whether or
+  not encryption is on, and even while locked.
+- It protects the stored bytes if the device or its storage is taken. It does
+  not protect a session you leave unlocked, and it is not a substitute for a
+  locked OS account on a shared computer. See
+  [threat-model.md](threat-model.md).

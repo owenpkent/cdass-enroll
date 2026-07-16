@@ -2,10 +2,12 @@ import {
   PROFILE_SECTIONS,
   EMPLOYER_SECTIONS,
   blankProfile,
+  blankEmployer,
   displayName,
   scrubSensitive,
 } from "./schema.js";
 import * as store from "./store.js";
+import * as vault from "./crypto/vault.js";
 import { scanLicense, scanLicenseFront, scanPassport, scanSsnCard, readLicenseRegion } from "./extract/scanner.js";
 import { readFilledPacket } from "./extract/filledpacket.js";
 import { fillPacket2026 } from "./fill/packet2026.js";
@@ -16,25 +18,38 @@ import { todayIso } from "./fill/util.js";
 // This is a one-at-a-time tool: a single person's profile, plus the standing
 // "your details" (member + employer of record) that get reused on every packet.
 const state = {
-  profile: store.loadProfile(),
-  employer: store.loadEmployer(),
+  profile: blankProfile(),
+  employer: blankEmployer(),
   genOptions: { signatureDate: todayIso(), firstDay: "", newService: true },
   showSettings: false,
+  locked: false,
+  unlockError: "",
 };
 
-// Retention backstop: clear the saved person if untouched longer than the setting.
+// Retention backstop runs regardless of lock state: touchedAt is kept in
+// cleartext, so a stale person is cleared even before the passphrase is entered.
 if (store.purgeStaleProfile()) {
-  state.profile = store.loadProfile();
   state.purgedNote = "The previously saved person was auto-cleared (older than the retention period set in Your details).";
 }
 
-// Pre-fill the standing details from seed.local.json on a fresh browser profile.
-store.applySeedIfEmpty().then((applied) => {
-  if (applied) {
-    state.employer = store.loadEmployer();
+// Load the saved data into memory, applying the seed on a fresh browser profile.
+async function loadIntoState() {
+  state.profile = store.loadProfile();
+  state.employer = store.loadEmployer();
+  if (await store.applySeedIfEmpty()) state.employer = store.loadEmployer();
+}
+
+// Boot: when the store is encrypted, show the unlock gate and wait for the
+// passphrase before loading anything; otherwise read straight through.
+async function boot() {
+  if (store.isLocked()) {
+    state.locked = true;
     render();
+    return;
   }
-});
+  await loadIntoState();
+  render();
+}
 
 const app = document.getElementById("app");
 
@@ -229,6 +244,10 @@ function renderSignatureField(f, obj, onChange) {
 
 // ---------- shell ----------
 function render() {
+  if (state.locked) {
+    app.replaceChildren(renderUnlockGate());
+    return;
+  }
   app.replaceChildren(
     h(
       "header",
@@ -248,6 +267,53 @@ function render() {
       )
     ),
     state.showSettings ? renderSettings() : renderMain()
+  );
+}
+
+// The gate shown at boot when the store is encrypted and still locked.
+function renderUnlockGate() {
+  const input = h("input", { type: "password", placeholder: "Passphrase", style: "width:100%" });
+  const err = h("p", { class: "status err", style: state.unlockError ? "" : "display:none" }, state.unlockError);
+  const btn = h("button", { class: "btn primary" }, "Unlock");
+  const submit = async () => {
+    const pass = input.value;
+    if (!pass) return;
+    btn.disabled = true;
+    btn.textContent = "Unlocking...";
+    const ok = await store.unlock(pass);
+    if (!ok) {
+      state.unlockError = "Wrong passphrase, or the saved data is corrupt. Try again.";
+      err.textContent = state.unlockError;
+      err.style.display = "";
+      btn.disabled = false;
+      btn.textContent = "Unlock";
+      input.value = "";
+      input.focus();
+      return;
+    }
+    state.unlockError = "";
+    state.locked = false;
+    await loadIntoState();
+    render();
+  };
+  btn.onclick = submit;
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") submit();
+  };
+  setTimeout(() => input.focus(), 0);
+  return h(
+    "div",
+    { class: "card unlock" },
+    h("h1", {}, "CDASS Enroll"),
+    h("p", {}, "This saved data is protected with a passphrase. Enter it to unlock."),
+    h("label", { class: "field" }, "Passphrase", input),
+    err,
+    h("div", { class: "btnrow" }, btn),
+    h(
+      "p",
+      { class: "note" },
+      "There is no recovery if the passphrase is lost: without it the data cannot be decrypted."
+    )
   );
 }
 
@@ -659,6 +725,127 @@ function renderSettings() {
   return wrap;
 }
 
+// Encryption on/off controls inside the privacy card. Renders one of two
+// states: a set-passphrase form when off, or manage buttons when on.
+function renderEncryptionControls() {
+  if (store.isEncrypted()) {
+    return h(
+      "div",
+      { class: "enc-controls" },
+      h("p", { class: "status ok" }, "🔒 Saved data is encrypted with your passphrase."),
+      h(
+        "div",
+        { class: "btnrow" },
+        h(
+          "button",
+          {
+            class: "btn",
+            onclick: async () => {
+              const cur = prompt("Current passphrase:");
+              if (!cur) return;
+              const nw = prompt("New passphrase (use at least four random words):");
+              if (!nw) return;
+              if (!vault.estimateStrength(nw).ok) {
+                alert("That passphrase is too weak. Use at least four random words.");
+                return;
+              }
+              const changed = await store.changePassphrase(cur, nw);
+              alert(changed ? "Passphrase changed." : "That current passphrase was wrong.");
+            },
+          },
+          "Change passphrase"
+        ),
+        h(
+          "button",
+          {
+            class: "btn",
+            onclick: () => {
+              store.lock();
+              state.locked = true;
+              state.showSettings = false;
+              render();
+            },
+          },
+          "Lock now"
+        ),
+        h(
+          "button",
+          {
+            class: "btn danger",
+            onclick: async () => {
+              if (!confirm("Turn off encryption? Your saved data will be stored unencrypted again."))
+                return;
+              await store.disableEncryption();
+              render();
+            },
+          },
+          "Turn off encryption"
+        )
+      )
+    );
+  }
+
+  const p1 = h("input", { type: "password", placeholder: "Passphrase", style: "width:100%" });
+  const p2 = h("input", { type: "password", placeholder: "Confirm passphrase", style: "width:100%" });
+  const meter = h("p", { class: "note" }, "Use at least four random words.");
+  p1.oninput = () => {
+    if (!p1.value) {
+      meter.textContent = "Use at least four random words.";
+      return;
+    }
+    const s = vault.estimateStrength(p1.value);
+    meter.textContent = `Strength: ${s.label}` + (s.ok ? "" : " - too weak, use at least four random words");
+  };
+  const form = h(
+    "div",
+    { class: "enc-form", style: "display:none; max-width:360px" },
+    h("label", { class: "field" }, "New passphrase", p1),
+    h("label", { class: "field" }, "Confirm", p2),
+    meter,
+    h(
+      "p",
+      { class: "note" },
+      "There is no recovery if you lose it: without the passphrase the data cannot be decrypted."
+    ),
+    h(
+      "div",
+      { class: "btnrow" },
+      h(
+        "button",
+        {
+          class: "btn primary",
+          onclick: async () => {
+            if (p1.value !== p2.value) {
+              alert("Passphrases do not match.");
+              return;
+            }
+            if (!vault.estimateStrength(p1.value).ok) {
+              alert("That passphrase is too weak. Use at least four random words.");
+              return;
+            }
+            await store.enableEncryption(p1.value);
+            render();
+          },
+        },
+        "Encrypt saved data"
+      )
+    )
+  );
+  const toggle = h(
+    "button",
+    {
+      class: "btn",
+      onclick: () => {
+        const showing = form.style.display !== "none";
+        form.style.display = showing ? "none" : "";
+        if (!showing) p1.focus();
+      },
+    },
+    "Protect saved data with a passphrase"
+  );
+  return h("div", { class: "enc-controls" }, toggle, form);
+}
+
 function renderPrivacyCard() {
   const fileInput = h("input", {
     type: "file",
@@ -710,9 +897,14 @@ function renderPrivacyCard() {
     h(
       "p",
       {},
-      "The person's information (including their SSN) is stored in this browser's local storage on this machine, unencrypted. To limit how long it sits there, it is automatically cleared after the retention period below (your standing details are kept and re-seed automatically). Generated PDFs go to your Downloads folder; store and dispose of them like any document containing an SSN."
+      store.isEncrypted()
+        ? "The person's information (including their SSN) is stored in this browser's local storage on this machine, encrypted with your passphrase. It is still automatically cleared after the retention period below. Generated PDFs go to your Downloads folder unencrypted; store and dispose of them like any document containing an SSN."
+        : "The person's information (including their SSN) is stored in this browser's local storage on this machine, unencrypted. You can turn on passphrase encryption below. To limit how long it sits there, it is automatically cleared after the retention period below (your standing details are kept and re-seed automatically). Generated PDFs go to your Downloads folder; store and dispose of them like any document containing an SSN."
     ),
     h("label", { class: "field", style: "max-width: 320px" }, "Auto-clear the saved person after", retentionSel),
+    h("hr", { class: "soft" }),
+    h("h3", {}, "Encryption at rest"),
+    renderEncryptionControls(),
     h("hr", { class: "soft" }),
     h(
       "div",
@@ -764,4 +956,4 @@ function download(bytes, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-render();
+boot();

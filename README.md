@@ -83,13 +83,22 @@ review them.
   are vendored to disk by `npm install`. A Content-Security-Policy header
   blocks outbound connections as a second layer of enforcement.
 - **ID photos are never stored.** They are decoded in memory and discarded.
-- **The person's data stays on this machine**, in browser localStorage,
-  unencrypted. Two cleanup layers keep SSNs from lingering: after each
-  generation the app **offers to clear sensitive fields** immediately, and the
-  saved person **auto-clears after a retention period** (30 days since last
-  edit by default; configurable under ⚙ Your details). Your standing details
-  survive and re-seed automatically. Treat generated PDFs in Downloads like
-  any document with an SSN on it.
+- **The person's data stays on this machine**, in browser localStorage.
+  Two cleanup layers keep SSNs from lingering: after each generation the app
+  **offers to clear sensitive fields** immediately, and the saved person
+  **auto-clears after a retention period** (30 days since last edit by default;
+  configurable under ⚙ Your details). Your standing details survive and re-seed
+  automatically. Treat generated PDFs in Downloads like any document with an
+  SSN on it.
+- **Optional passphrase encryption at rest.** ⚙ Your details has a "Protect
+  saved data with a passphrase" switch. When on, the profile and standing
+  details are encrypted with AES-256-GCM under a key derived by Argon2id
+  (memory-hard, via the vendored `hash-wasm`); the key lives only in memory and
+  the passphrase is entered once per session at an unlock screen. It defends the
+  stored bytes against offline access (theft, disk image, backup, another OS
+  account); it is not a substitute for OS access control on a shared machine.
+  There is no recovery if the passphrase is lost. See
+  [docs/threat-model.md](docs/threat-model.md).
 - **⚙ Your details** has export (JSON backup), import, and wipe-everything
   buttons alongside the Member/employer fields.
 - **Optional seed file.** If a gitignored `public/seed.local.json` exists
