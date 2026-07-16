@@ -29,6 +29,22 @@ pages and the I-9 Section 2 line as an image overlay. Coordinates are the
 `EMPLOYER_SIGNATURE` table in `packet2026.js`; nudge them there if a signature
 sits off its line. Other parties' signature lines are never filled.
 
+**Crop the signature image to the ink, or the mark comes out small.**
+`overlaySignature` scales the image to the placement box's *height* (22pt on the
+packet lines), and it scales the whole image, blank margin included. So a margin
+baked into the file eats the box and the writing shrinks to whatever fraction is
+left. The same signature, measured on a 300x22 line:
+
+| Image | Aspect | Drawn | Ink height |
+| --- | --- | --- | --- |
+| Cropped to the writing | ~5.8:1 | 128pt wide | ~19pt |
+| Same mark, 2:1 with margin | 2:1 | 44pt wide | ~7pt |
+
+Width only becomes the constraint past about 13.6:1, where the image is clamped
+to the line's width and the height shrinks instead. An image lifted out of
+another PDF is the usual offender, since it carries that document's placement box
+with it as padding; crop to the alpha bounding box first.
+
 ### The three rate tables (page 10)
 
 The rates page carries three tables with parallel field names, and a rate

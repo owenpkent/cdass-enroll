@@ -31,8 +31,11 @@ below as 0.1.0, and work since then sits under Unreleased.
 - **Employer signature.** Upload an image of your signature in Your details. It
   is placed on the packet's three employer signature lines and the I-9 Section 2
   employer line. A photo on white paper works; the app knocks out the
-  background. Other parties (attendant, Member, FMS vendor, HCPF, preparer) sign
-  by hand, and nothing is fabricated.
+  background. Crop it close to the writing: the overlay scales the image to the
+  height of the signature line and scales any blank margin with it, so a mark
+  floating in a border comes out a fraction of the size. Other parties
+  (attendant, Member, FMS vendor, HCPF, preparer) sign by hand, and nothing is
+  fabricated.
 - **License front scan.** When the barcode will not read, OCR the front of the
   license for date of birth and address (best-effort, verify the values).
 - **Crop-to-barcode tool.** When a license barcode does not auto-decode, the

@@ -95,7 +95,9 @@ review them.
 - **Optional seed file.** If a gitignored `public/seed.local.json` exists
   (shape: `{"employer": { ...standing details... }}`), the app loads it into
   Your details the first time it runs in a browser profile. It never
-  overwrites existing settings and must never be committed.
+  overwrites existing settings and must never be committed. `signature` is a
+  standing detail like any other, so a seed file can carry the signature image
+  as a PNG data URL.
 
 ## Documentation
 
