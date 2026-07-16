@@ -40,7 +40,18 @@ below as 0.1.0, and work since then sits under Unreleased.
   enlarges that region and retries.
 - **White paper.** `docs/whitepaper.md` describes the reusable local-first
   form-autofill pattern and relates it to the CCDC Medicaid tool (Coverage
-  Compass).
+  Compass). Section 5.0 covers filling new forms from old ones (form to profile
+  to form, mappings as tables that run backwards, and why authoring is the real
+  ceiling). Section 5.2 covers what reuse costs the privacy model: the reusable
+  artifact holds no personal data, so the two are only in tension if you let
+  them be; `default-src 'self'` guarantees same origin, and "nothing leaves the
+  device" depends on the origin being the device, so hosting re-opens what
+  localhost closed; the leak that matters is metadata (which mapping you
+  fetched names the benefit you are applying for), so ship the whole mapping
+  library and let people bring the blank form; and a mapping must be data
+  rather than a JS module, because an imported module is code execution on a
+  page holding SSNs. Section 7 adds the limits reuse exposes: encryption at
+  rest is a prerequisite, not an upgrade, once the operator is not the subject.
 - **Editing completed PDFs.** `docs/editing-completed-pdfs.md` documents how to
   surgically change a value (a rate, a date) on an already-filled Adobe Fill &
   Sign PDF outside the app: redact the old text only so table borders survive,
