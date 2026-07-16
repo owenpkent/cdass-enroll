@@ -12,6 +12,7 @@
     "postinstall": "node scripts/setup-assets.mjs"
   },
   "dependencies": {
+    "hash-wasm": "^4.12.0",
     "pdf-lib": "^1.17.1",
     "tesseract.js": "^6.0.1",
     "zxing-wasm": "^2.1.2"

@@ -8,6 +8,21 @@ below as 0.1.0, and work since then sits under Unreleased.
 ## [Unreleased]
 
 ### Added
+- **Optional passphrase encryption at rest.** ⚙ Your details has a "Protect
+  saved data with a passphrase" switch. When on, the profile and standing
+  details are stored as AES-256-GCM envelopes under a key derived by Argon2id
+  (memory-hard, m=64 MiB/t=3/p=1, via the newly vendored `hash-wasm`); the
+  non-extractable key lives only in memory and the passphrase is entered once
+  per session at an unlock gate. `store.js` decrypts once into an in-memory
+  cache so its load/save API stays synchronous, and writes ciphertext
+  asynchronously; `touchedAt` stays in cleartext envelope metadata so retention
+  auto-clear still runs while locked. Wrong passphrases are caught by the GCM
+  auth tag (no passphrase hash is stored), and a strength floor refuses weak
+  passphrases because entropy, not the KDF, dominates. It defends the stored
+  bytes against offline access (theft, disk image, backup, another OS account),
+  not a live session or a shared unlocked login; `docs/threat-model.md` accounts
+  for it vector by vector. No CSP change: `'wasm-unsafe-eval'` was already
+  present for OCR, and hash-wasm inlines its WASM so nothing is fetched.
 - **Start from a previous packet.** Step 1 takes a filled packet PDF and reads it
   straight back into the form. A filled AcroForm is the most accurate input this
   app has: the agency's own field names against values a human already checked

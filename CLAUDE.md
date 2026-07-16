@@ -25,6 +25,10 @@ CSP in index.html enforces this and should stay.
   packet is supported (the 2025 mapping was removed; it is in git history)
 - `docs/forms.md` documents every mapping, template quirk, and the form
   revision workflow; update it when mappings change
+- `src/store.js` persists to localStorage; `src/crypto/vault.js` adds optional
+  passphrase encryption at rest (Argon2id via `hash-wasm` + AES-256-GCM,
+  opt-in under ⚙ Your details). `docs/threat-model.md` explains what it does
+  and does not defend; `node tests/vault.test.mjs` round-trips it
 - Blank templates: `public/forms/`. Never commit filled forms or anything
   with real employee data (tests use the fictional Jane Doe)
 - `public/seed.local.json` holds Owen's real member/employer details and is

@@ -11,6 +11,7 @@ Static single-page app, no framework, no backend.
 | License barcode | zxing-wasm reading PDF417, parsed as AAMVA |
 | Passport / SSN card | tesseract.js OCR with locally vendored model |
 | Persistence | browser localStorage |
+| Encryption at rest (optional) | Argon2id (hash-wasm) key derivation + AES-256-GCM (WebCrypto) |
 
 ## Privacy enforcement, in layers
 
@@ -26,12 +27,19 @@ Static single-page app, no framework, no backend.
    dependency could not phone home from the page.
 4. **Dev server binds 127.0.0.1 only**, never the LAN.
 
-Known trade-off: profiles (including SSNs) sit unencrypted in localStorage.
-Acceptable for a single-user locked Windows account with disk encryption;
-a passphrase-encrypted store (WebCrypto) is the natural upgrade if that
-assumption changes. That upgrade covers a bounded set of vectors and is not
-sufficient on its own for the case where one person holds another's data; see
-[threat-model.md](threat-model.md).
+By default, profiles (including SSNs) sit unencrypted in localStorage, which is
+acceptable for a single-user locked account with disk encryption. Optionally,
+the user can turn on **passphrase encryption at rest** (⚙ Your details): a key
+derived by Argon2id (`src/crypto/vault.js`, using the vendored `hash-wasm`)
+encrypts the profile and standing details with AES-256-GCM. The key is held
+only in memory as a non-extractable `CryptoKey`; the passphrase is entered once
+per session at an unlock gate. `src/store.js` keeps a synchronous load/save API
+by decrypting once into an in-memory cache at unlock and writing ciphertext
+asynchronously (serialized per key). The `touchedAt` timestamp stays in
+cleartext envelope metadata so retention auto-clear still runs while locked.
+This covers offline access to the stored bytes (theft, disk image, backup,
+another OS account); it is not sufficient on its own for the case where one
+person holds another's data. See [threat-model.md](threat-model.md).
 
 ## Data flow
 
