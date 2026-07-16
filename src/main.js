@@ -7,6 +7,7 @@ import {
 } from "./schema.js";
 import * as store from "./store.js";
 import { scanLicense, scanLicenseFront, scanPassport, scanSsnCard, readLicenseRegion } from "./extract/scanner.js";
+import { readFilledPacket } from "./extract/filledpacket.js";
 import { fillPacket2026 } from "./fill/packet2026.js";
 import { fillI9Standalone } from "./fill/i9.js";
 import { fillW4 } from "./fill/w4.js";
@@ -299,6 +300,43 @@ function renderMain() {
     }
   }
 
+  // Standing details fill in only where they are still blank, the same rule the
+  // seed file uses: importing an old packet must not quietly rewrite the Member
+  // or employer of record already set under "Your details".
+  function applyEmployerIfEmpty(fields) {
+    const filled = [];
+    for (const [k, v] of Object.entries(fields)) {
+      if (k in state.employer && !state.employer[k] && v) {
+        state.employer[k] = v;
+        filled.push(k);
+      }
+    }
+    if (filled.length) store.saveEmployer(state.employer);
+    return filled;
+  }
+
+  // Import a previously filled packet. A filled AcroForm is the most accurate
+  // input this app takes (the agency's own field names against values a human
+  // already checked and signed), so it goes through the same review path as a
+  // scan: every value flashes yellow and nothing is trusted blindly.
+  async function handleImport(file) {
+    setScanStatus("busy", "Reading the packet locally...");
+    try {
+      const { profile: got, employer: emp } = await readFilledPacket(await file.arrayBuffer());
+      const changed = applyScanFields(got);
+      const seeded = applyEmployerIfEmpty(emp);
+      const standing = seeded.length ? ` Filled ${seeded.length} empty standing detail${seeded.length === 1 ? "" : "s"}.` : "";
+      setScanStatus(
+        "ok",
+        `Previous packet: filled ${changed.size} field${changed.size === 1 ? "" : "s"}.${standing} ` +
+          "Tax, live-in, and work-authorization answers are not imported; set those yourself. Review everything below."
+      );
+      cropArea.replaceChildren();
+    } catch (e) {
+      setScanStatus("err", e.message);
+    }
+  }
+
   // When the license barcode won't auto-decode, show the photo and let the user
   // box the barcode; that region is enlarged and decoded.
   async function showCropper(file, err) {
@@ -398,6 +436,26 @@ function renderMain() {
       h("span", { class: "big" }, "\u{1F4F7}"),
       h("strong", {}, label),
       h("small", {}, hint),
+      input
+    );
+  };
+
+  const importButton = () => {
+    const input = h("input", {
+      type: "file",
+      accept: "application/pdf,.pdf",
+      onchange: (e) => {
+        const file = e.target.files[0];
+        if (file) handleImport(file);
+        e.target.value = "";
+      },
+    });
+    return h(
+      "label",
+      { class: "scanbtn narrow" },
+      h("span", { class: "big" }, "\u{1F4C4}"),
+      h("strong", {}, "Previous packet"),
+      h("small", {}, "A filled PDF from a past hire"),
       input
     );
   };
@@ -505,7 +563,7 @@ function renderMain() {
     h(
       "div",
       { class: "card" },
-      h("h2", {}, "Step 1: Upload identification documents"),
+      h("h2", {}, "Step 1: Upload documents"),
       h(
         "div",
         { class: "scanrow" },
@@ -514,6 +572,12 @@ function renderMain() {
         scanButton("Passport", "Photo page, straight on", scanPassport),
         scanButton("Social Security card", "Front, well lit", scanSsnCard)
       ),
+      h(
+        "p",
+        { class: "note orline" },
+        "Or start from paperwork you already have. Reading a filled packet back in is more accurate than any scan, and it brings over identity, contact, address, payment, and rates. The tax, live-in, and work-authorization answers are yours to make, so it leaves those alone."
+      ),
+      h("div", { class: "scanrow" }, importButton()),
       scanStatus,
       cropArea,
       h(

@@ -8,6 +8,20 @@ below as 0.1.0, and work since then sits under Unreleased.
 ## [Unreleased]
 
 ### Added
+- **Start from a previous packet.** Step 1 takes a filled packet PDF and reads it
+  straight back into the form. A filled AcroForm is the most accurate input this
+  app has: the agency's own field names against values a human already checked
+  and signed, with no OCR or barcode in the way, so it beats every scan. It
+  brings over identity, contact, address, payment, and rates, and fills empty
+  standing details (Member, employer of record) without overwriting ones already
+  set. It deliberately imports nothing the packet phrases as a first-person
+  attestation: the tax-exemption statements, the under-18 statements, the EVV
+  live-in attestation, and I-9 citizenship stay for the human, because
+  re-asserting an old form's word onto a new one is the one thing this pattern
+  must not do. Imported values flash yellow for review like any scan.
+  `PACKET2026_TEXT` in `src/fill/packet2026.js` is now the single table both
+  directions read, and a round-trip smoke test is the contract that keeps them
+  agreeing.
 - **Member program picks the rate table.** The rates page has three tables and
   the rate belongs in exactly one: CDASS (most members), SLS waiver only, or
   Community First Choice only. A new "Member's program" setting in Your details
@@ -63,6 +77,24 @@ below as 0.1.0, and work since then sits under Unreleased.
 - **Line endings** pinned to LF via `.gitattributes`.
 
 ### Fixed
+- **The Tax Exemptions Form went out with Part 1 blank.** The form requires one
+  of its four statements ("check the box for the one that is true for you"), but
+  the profile's relation-to-employer dropdown started empty and every page-11
+  checkbox is gated on it, so an untouched dropdown produced an incomplete form
+  that had to be checked by hand after generating. It now defaults to "Not
+  spouse, parent, or child of the employer", which is true of any attendant who
+  is not family. Hiring a relative means changing the dropdown; see
+  [docs/forms.md](docs/forms.md).
+- **A missing profile key checked the box it was supposed to leave blank.**
+  `check(form, name, on = true)` defaulted `on` to `true`, and the age-gated
+  guards evaluate to `undefined` (not `false`) when the key is absent, so
+  `undefined` took the default and checked the box. A profile without
+  `fullTimeStudent` attested "I am under 18 years old" on an adult's signed tax
+  form, and one without `paperPayStub` asked for a mailed pay stub. Reachable by
+  anything calling the fill modules directly; the app itself was shielded
+  because `blankProfile()` seeds checkboxes to `false`, which is also why the
+  existing test passed (it set `fullTimeStudent: true` explicitly and never
+  exercised the undefined path). `on` no longer has a default.
 - **State ID cards lost the ID number.** A non-DL card uses the subfile type
   `ID` (AAMVA D.12.4), so its payload reads `IDDAQ<number>`, and `DDA` (itself
   a valid element ID) matched one character early and swallowed the number,

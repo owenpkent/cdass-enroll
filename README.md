@@ -60,6 +60,11 @@ blank wherever an attestation is ambiguous (details in
 
 All on-device:
 
+- **A previous packet**: the most accurate input there is. Hand the app a packet
+  you already filled for this person and it reads the values straight back out
+  of the PDF's form fields, with no OCR or barcode in the way. It brings over
+  identity, contact, address, payment, and rates; the tax, live-in, and
+  work-authorization answers are attestations, so it leaves those for you.
 - **Driver's license**: photograph the **back**. The PDF417 barcode carries
   name, address, DOB, license number, and expiration in machine-readable
   form, which is far more reliable than OCR of the front.

@@ -136,8 +136,20 @@ means empty storage). Recover by importing the JSON backup from Your details;
 if you never exported one and the data was cleared, it is gone, which is the
 flip side of local-only storage. Export a backup after entering real data.
 
+If there is no backup but you still have a packet you generated for that person,
+**Previous packet** in Step 1 reads most of it back: identity, contact, address,
+payment, and rates, plus any Member/employer details still blank. It cannot
+recover the tax, live-in, or work-authorization answers (those are attestations
+and are never imported) or the signature image (it is not in the PDF as data).
+
 **Moving to a new computer**
 
 Under Your details: Export on the old machine, Import on the new one, then Wipe
 all data on the old machine. The export JSON contains SSNs; transfer it on
 something you control and delete it after importing.
+
+This is the only path that carries the **signature image**, which lives in
+browser storage and is not recoverable from a generated PDF. If you have already
+moved and the old machine is gone, feed a packet you generated for a past hire
+into **Previous packet** to get the standing details back, and re-upload the
+signature by hand.
