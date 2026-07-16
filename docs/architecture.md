@@ -29,7 +29,9 @@ Static single-page app, no framework, no backend.
 Known trade-off: profiles (including SSNs) sit unencrypted in localStorage.
 Acceptable for a single-user locked Windows account with disk encryption;
 a passphrase-encrypted store (WebCrypto) is the natural upgrade if that
-assumption changes.
+assumption changes. That upgrade covers a bounded set of vectors and is not
+sufficient on its own for the case where one person holds another's data; see
+[threat-model.md](threat-model.md).
 
 ## Data flow
 
