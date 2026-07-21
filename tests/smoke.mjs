@@ -265,6 +265,7 @@ expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
     "List B Document Number 1",
     "Last Name (Family Name)",
     "CB_1",
+    "Last Name First Name and Title of Employer or Authorized Representative",
   ]);
   expect("packet: member and attendant names land", f["Member Name: first and last"] === "Owen Kent" && f["Attendant Name: first, middle and last"] === "Jane Marie Doe", JSON.stringify(f));
   expect("packet: DOB and SSN are formatted", f["Attendant date of birth"] === "06/06/1986" && f["Attendant Social Security Number"] === "123-45-6789", JSON.stringify(f));
@@ -273,6 +274,10 @@ expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
   expect("packet: rates land", f["CDASS Standard Rate"] === "20.00" && f["CDASS Emergency Rate"] === "45", JSON.stringify(f));
   expect("packet: relationship and payment boxes check", f["NonRelative"] === true && f["Direct Deposit to Bank Account or Third Party Money App"] === true && f["Checking Account"] === true, JSON.stringify(f));
   expect("packet: embedded I-9 fills (List B + citizenship)", f["Last Name (Family Name)"] === "Doe" && f["List B Document Number 1"] === "123456789" && f["CB_1"] === true, JSON.stringify(f));
+  // I-9 Section 2 signer line is "Last, First, Title" of the employer (the Member).
+  // With no employer name it silently degrades to just the title ("Employer"), an
+  // incomplete form PPL bounces, so assert the name actually lands.
+  expect("packet: I-9 Section 2 names the employer, not just the title", f["Last Name First Name and Title of Employer or Authorized Representative"] === "Kent, Owen, Employer", JSON.stringify(f));
 }
 
 // The rate belongs in exactly one of the three tables on page 10, chosen by the
@@ -314,11 +319,13 @@ expect("standalone I-9 filled and saved", i9Bytes.length > 50000, String(i9Bytes
     "List C Document Number 1",
     "List B Issuing Authority 1",
     "Employers Business or Org Name",
+    "Last Name First Name and Title of Employer or Authorized Representative",
     "FirstDayEmployed mmddyyyy",
   ]);
   expect("I-9: name and SSN (digits only, maxLength 9)", f["Last Name (Family Name)"] === "Doe" && f["US Social Security Number"] === "123456789", JSON.stringify(f));
   expect("I-9: license is List B, SSN card is List C", f["List B Document Number 1"] === "123456789" && f["List C Document Number 1"] === "123-45-6789" && f["List B Issuing Authority 1"] === "Colorado DMV", JSON.stringify(f));
   expect("I-9: employer block fills", f["Employers Business or Org Name"] === "Owen Kent, Household Employer" && f["FirstDayEmployed mmddyyyy"] === "06/15/2026", JSON.stringify(f));
+  expect("I-9: Section 2 names the employer, not just the title", f["Last Name First Name and Title of Employer or Authorized Representative"] === "Kent, Owen, Employer", JSON.stringify(f));
 
   const withPassport = { ...profile, passportNumber: "540012345", passportExpiration: "2031-05-15" };
   const pp = await readFields(

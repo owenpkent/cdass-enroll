@@ -158,6 +158,12 @@ Document logic:
   card.
 - The I-9 SSN field has `maxLength=9`, so it gets digits without dashes.
 
+Section 2's signer line (`Last Name First Name and Title of Employer or
+Authorized Representative`) is written `Last, First, Title` of the employer,
+who in CDASS is the Member. If the employer name is empty it degrades to just
+the title (`Employer`) with no name, an incomplete form PPL bounces, so the
+smoke test now reads it back on both the embedded and standalone copies.
+
 ## The license barcode (AAMVA PDF417)
 
 Not a PPL form, but the same shape of problem: an external format whose contract
@@ -212,8 +218,8 @@ right page count and byte size. So the test does two things beyond filling:
   every name the mappings write still exists in the templates.
 - It reads representative values back out of the filled bytes (names, SSN
   formatting, per-digit bank boxes, rate table routing, I-9 List A vs List B/C,
-  age-gated attestations, the W-4 employer block), so a field that resolves but
-  receives the wrong value is caught too.
+  the I-9 Section 2 employer name, age-gated attestations, the W-4 employer
+  block), so a field that resolves but receives the wrong value is caught too.
 
 Keep both when adding a mapping: a new field name with no readback assertion is
 only half covered.
