@@ -133,10 +133,10 @@ newest download, not an earlier one with the same name plus ` (1)`.
 
 **The saved person disappeared**
 
-First check: the app auto-clears the saved person if untouched for longer than
-the retention period (30 days by default; the setting is under **Your
-details**, in the Privacy & your data card). A note at the top of the page says
-when this happened. This is by design, so SSNs don't sit on disk indefinitely.
+First check: the app clears the saved person when you close it, and again when
+you reopen it; there is no setting to keep it longer. A note at the top of the
+page says when this happened. This is by design, so SSNs don't sit on disk
+indefinitely.
 
 Otherwise: the profile lives in browser localStorage, scoped to browser +
 origin (`127.0.0.1:5180`). Causes: a different browser or profile, "clear

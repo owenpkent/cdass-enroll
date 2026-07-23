@@ -85,11 +85,10 @@ review them.
 - **ID photos are never stored.** They are decoded in memory and discarded.
 - **The person's data stays on this machine**, in browser localStorage.
   Two cleanup layers keep SSNs from lingering: after each generation the app
-  **offers to clear sensitive fields** immediately, and the saved person
-  **auto-clears after a retention period** (30 days since last edit by default;
-  configurable under ⚙ Your details). Your standing details survive and re-seed
-  automatically. Treat generated PDFs in Downloads like any document with an
-  SSN on it.
+  **offers to clear sensitive fields** immediately, and the saved person is
+  **cleared when you close the app** (and again on the next launch as a
+  backstop). Your standing details survive and re-seed automatically. Treat generated PDFs in Downloads like any document
+  with an SSN on it.
 - **Optional passphrase encryption at rest.** ⚙ Your details has a "Protect
   saved data with a passphrase" switch. When on, the profile and standing
   details are encrypted with AES-256-GCM under a key derived by Argon2id

@@ -78,9 +78,10 @@ carried to any other form.
    relationship, an age threshold, a tax status) are only checked when the
    stored data unambiguously supports them. Extracted values are shown for
    review, never trusted blindly. Anything uncertain is left for the human.
-6. **Privacy hygiene by default.** Sensitive data is cleared on a schedule and
-   offered for immediate clearing right after the forms are generated. The tool
-   holds the minimum it needs for the minimum time.
+6. **Privacy hygiene by default.** Sensitive data is cleared when the app closes
+   (and again on the next launch), and offered for immediate clearing right after
+   the forms are generated. The tool holds the minimum it needs for the minimum
+   time.
 7. **Dumb, diffable mappings.** Each form's mapping is a flat list of
    `setField("exact PDF field name", value)`. It is trivial to diff against a
    field dump when the issuer revises a template, and a renamed field degrades
@@ -124,9 +125,10 @@ the form mapping changes per form.
   count and field count match the blank template (proof it stayed an exact,
   editable copy).
 - **Persistence and privacy layer.** Data lives in the browser's local storage
-  on the device. A retention setting auto-clears it after a chosen period, and
-  the app offers to scrub sensitive fields immediately after generating. A
-  gitignored seed file can pre-fill the standing information on a fresh setup.
+  on the device. The saved person is cleared when the app closes and again on
+  the next launch, and the app also offers to scrub sensitive fields immediately
+  after generating. A gitignored
+  seed file can pre-fill the standing information on a fresh setup.
 - **UI layer.** A single page renders the schema as a form, with a linear flow:
   upload documents, review the auto-filled fields, generate the PDF.
 
@@ -503,6 +505,6 @@ already built.
 | Fill: per-form mapping | `src/fill/packet2026.js`, `w4.js`, shared `i9.js` |
 | Fill: tolerant helpers | `src/fill/util.js` (missing field warns, never throws) |
 | Output | template load, AcroForm fill without flattening, local download |
-| Persistence and privacy | `src/store.js` (local storage, retention, scrub, seed, export/import) |
+| Persistence and privacy | `src/store.js` (local storage, clear-on-start, scrub, seed, export/import) |
 | UI | `src/main.js` (single-page upload, review, generate) |
 | Verification | `tests/smoke.mjs` (fills real templates, asserts exact editable output) |

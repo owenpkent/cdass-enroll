@@ -523,7 +523,7 @@ expect("no unresolved field names in any mapping", mappingWarnings.length === 0,
   expect("scrub reports cleared keys", cleared.includes("ssn") && cleared.includes("account"), cleared.join(","));
 }
 
-// ---- Single-profile store: retention + legacy migration (localStorage stubbed) ----
+// ---- Single-profile store: clear-on-start + legacy migration (localStorage stubbed) ----
 {
   const m = new Map();
   globalThis.localStorage = {
@@ -532,18 +532,17 @@ expect("no unresolved field names in any mapping", mappingWarnings.length === 0,
     removeItem: (k) => m.delete(k),
   };
   const store = await import("../src/store.js");
-  const now = Date.now();
   const day = 24 * 60 * 60 * 1000;
+  const now = Date.now();
 
-  // A fresh profile is kept.
-  m.set("cdass.profile.v1", JSON.stringify({ first: "A", touchedAt: now - 1 * day }));
-  expect("retention keeps a fresh profile", store.purgeStaleProfile(now) === false && store.loadProfile().first === "A", "fresh");
+  // The saved person is cleared on start, and the clear is reported.
+  m.set("cdass.profile.v1", JSON.stringify({ first: "A" }));
+  expect("clear-on-start clears the saved person", store.clearProfileOnStart() === true && store.loadProfile().first === "", "cleared");
 
-  // A stale profile is cleared.
-  m.set("cdass.profile.v1", JSON.stringify({ first: "B", touchedAt: now - 40 * day }));
-  expect("retention clears a stale profile", store.purgeStaleProfile(now) === true && store.loadProfile().first === "", "stale");
+  // Nothing to clear reports false (so the UI shows no note).
+  expect("clear-on-start is a no-op when empty", store.clearProfileOnStart() === false, "empty");
 
-  // The old multi-profile array migrates to the most recently touched person.
+  // Before it is cleared, the old multi-profile array migrates to the most recent.
   m.clear();
   m.set(
     "cdass.profiles.v1",
@@ -553,6 +552,9 @@ expect("no unresolved field names in any mapping", mappingWarnings.length === 0,
     ])
   );
   expect("legacy array migrates to most-recent person", store.loadProfile().first === "Newer", store.loadProfile().first);
+
+  // Clear-on-start also removes the legacy array so it cannot resurrect.
+  expect("clear-on-start removes the legacy array", store.clearProfileOnStart() === true && store.loadProfile().first === "", "legacy cleared");
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nAll smoke tests passed.");

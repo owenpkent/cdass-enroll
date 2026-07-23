@@ -26,10 +26,11 @@ const state = {
   unlockError: "",
 };
 
-// Retention backstop runs regardless of lock state: touchedAt is kept in
-// cleartext, so a stale person is cleared even before the passphrase is entered.
-if (store.purgeStaleProfile()) {
-  state.purgedNote = "The previously saved person was auto-cleared (older than the retention period set in Your details).";
+// Privacy default: the enrolled person is cleared on every launch, regardless
+// of lock state (the encrypted envelope is removed without the passphrase). The
+// standing "Your details" are kept.
+if (store.clearProfileOnStart()) {
+  state.purgedNote = "The previously entered person was cleared. Their information is never kept between sessions; your standing details in Your details are.";
 }
 
 // Load the saved data into memory, applying the seed on a fresh browser profile.
@@ -612,7 +613,7 @@ function renderMain() {
               class: "btn",
               onclick: () =>
                 afterGen.replaceChildren(
-                  h("p", { class: "note" }, 'Kept. It will still auto-clear after the retention period (see "Your details"), or use "Start over" below.')
+                  h("p", { class: "note" }, 'Kept for this session. It clears automatically when you close the app, or use "Start over" below.')
                 ),
             },
             "Keep for now"
@@ -866,25 +867,6 @@ function renderPrivacyCard() {
     },
   });
 
-  const retentionSel = h(
-    "select",
-    {
-      onchange: (e) => {
-        store.setRetention(e.target.value);
-        if (store.purgeStaleProfile()) {
-          state.profile = store.loadProfile();
-          alert("The saved person was older than the new retention period and was cleared.");
-          render();
-        }
-      },
-    },
-    ...store.RETENTION_CHOICES.map(([v, label]) => {
-      const o = h("option", { value: v }, label);
-      o.selected = store.getRetentionSetting() === v;
-      return o;
-    })
-  );
-
   return h(
     "div",
     { class: "card privacy" },
@@ -898,10 +880,9 @@ function renderPrivacyCard() {
       "p",
       {},
       store.isEncrypted()
-        ? "The person's information (including their SSN) is stored in this browser's local storage on this machine, encrypted with your passphrase. It is still automatically cleared after the retention period below. Generated PDFs go to your Downloads folder unencrypted; store and dispose of them like any document containing an SSN."
-        : "The person's information (including their SSN) is stored in this browser's local storage on this machine, unencrypted. You can turn on passphrase encryption below. To limit how long it sits there, it is automatically cleared after the retention period below (your standing details are kept and re-seed automatically). Generated PDFs go to your Downloads folder; store and dispose of them like any document containing an SSN."
+        ? "The person's information (including their SSN) is cleared automatically when you close the app, and again when you reopen it, so it never lingers between sessions. While you are working, it is held in this browser's local storage on this machine, encrypted with your passphrase. Generated PDFs go to your Downloads folder unencrypted; store and dispose of them like any document containing an SSN."
+        : "The person's information (including their SSN) is cleared automatically when you close the app, and again when you reopen it, so it never lingers between sessions. While you are working, it is held in this browser's local storage on this machine, unencrypted; you can turn on passphrase encryption below. Your standing details are kept and re-seed automatically. Generated PDFs go to your Downloads folder; store and dispose of them like any document containing an SSN."
     ),
-    h("label", { class: "field", style: "max-width: 320px" }, "Auto-clear the saved person after", retentionSel),
     h("hr", { class: "soft" }),
     h("h3", {}, "Encryption at rest"),
     renderEncryptionControls(),
@@ -955,5 +936,12 @@ function download(bytes, filename) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+// Best-effort: wipe the person the instant the tab is closed or navigated away,
+// so their data does not linger in storage between sessions. clearProfileOnStart
+// above is the guarantee (it still runs next launch if this is skipped, e.g. a
+// crash or a straggling async encrypt write). pagehide, not visibilitychange,
+// so switching tabs does not wipe a person mid-edit.
+window.addEventListener("pagehide", () => store.clearProfile());
 
 boot();

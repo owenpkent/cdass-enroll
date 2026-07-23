@@ -15,9 +15,10 @@ below as 0.1.0, and work since then sits under Unreleased.
   non-extractable key lives only in memory and the passphrase is entered once
   per session at an unlock gate. `store.js` decrypts once into an in-memory
   cache so its load/save API stays synchronous, and writes ciphertext
-  asynchronously; `touchedAt` stays in cleartext envelope metadata so retention
-  auto-clear still runs while locked. Wrong passphrases are caught by the GCM
-  auth tag (no passphrase hash is stored), and a strength floor refuses weak
+  asynchronously; the only cleartext left on disk is the `{ _enc, iv, ct }`
+  envelope shell itself, no metadata rides alongside the ciphertext. Wrong
+  passphrases are caught by the GCM auth tag (no passphrase hash is stored), and
+  a strength floor refuses weak
   passphrases because entropy, not the KDF, dominates. It defends the stored
   bytes against offline access (theft, disk image, backup, another OS account),
   not a live session or a shared unlocked login; `docs/threat-model.md` accounts
@@ -79,6 +80,21 @@ below as 0.1.0, and work since then sits under Unreleased.
   then redraw on the same baseline. Includes a change log of such edits.
 
 ### Changed
+- **The saved person is cleared when the app closes and on the next launch, not
+  after a retention period.** A `pagehide` handler in `src/main.js` wipes the
+  profile the moment the tab closes or navigates away, and
+  `clearProfileOnStart()` (`src/store.js`, replacing `purgeStaleProfile`) runs
+  once at boot regardless of lock state as the guaranteed backstop if the
+  close-time wipe is skipped (a crash, or a straggling async encrypt write).
+  There is no more "keep for 7 / 30 / 90 days / until cleared
+  manually" dropdown: `getRetentionDays`, `setRetention`, `getRetentionSetting`,
+  and `RETENTION_CHOICES` are gone. Your standing details (Member and employer
+  of record) still persist and re-seed exactly as before, only the person's
+  sensitive per-session data is affected. This also removes the cleartext
+  `touchedAt` timestamp that used to sit in envelope metadata to let the
+  retention purge run while locked: with nothing left to time, there is nothing
+  left to stamp, so the encrypted store now exposes only the `{ _enc, iv, ct }`
+  envelope shell in cleartext.
 - **Fields that went nowhere were removed.** Gender, municipality, "use the same
   account for all Members", "list in the Attendant directory", and the Step 3
   "Rate effective date" were mapped by the 2025 packet and left orphaned when

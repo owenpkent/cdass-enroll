@@ -46,7 +46,7 @@ The code is identical across all three. The exposure is not.
 
 Legend: **Y** covers it, **P** partial, **N** does not.
 
-| Vector | Full-disk encryption | Auto-clear retention ([src/main.js](../src/main.js)) | Passphrase store (WebCrypto) | Per-client isolation + OS access control | Output handling |
+| Vector | Full-disk encryption | Clear on close + launch ([src/main.js](../src/main.js)) | Passphrase store (WebCrypto) | Per-client isolation + OS access control | Output handling |
 | --- | :---: | :---: | :---: | :---: | :---: |
 | Stolen powered-off laptop / disk image | Y | P | Y | N | N |
 | Cloud/USB backup of the profile dir | N | P | Y | N | N |
@@ -142,5 +142,8 @@ Encryption at rest is on this list, not above it:
    sensitive artifact it is.
 
 The single-user design target needs only full-disk encryption and the existing
-retention auto-clear. The gap between that and the multi-client case is this
-whole list, which is why the multi-client case is a redesign and not a setting.
+clear-on-close behavior: the person is wiped when the tab closes and again each
+time the app starts (the boot-time clear is the guarantee; the close-time clear
+is best-effort), so there is no retention window to size. The gap between that
+and the multi-client case is this whole list, which is why the multi-client case
+is a redesign and not a setting.
