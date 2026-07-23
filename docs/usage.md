@@ -61,8 +61,10 @@ The scan card is at the top of the page. Use a phone photo or any image file:
   tight crop, which works far better; on a real Colorado card that recovers the
   name and the date of birth. If the name still misses, the app offers
   **"Draw a box around the name"**: box the name lines yourself and it OCRs that
-  tight crop. The date of birth is left blank rather than guessed when OCR only
-  catches the expiry date. The **address usually will not read** on cards that
+  tight crop. Fields are left blank rather than guessed whenever the read is
+  ambiguous: the date of birth stays empty when OCR only catches the expiry
+  date, and the name stays empty rather than risk swapping the first and last.
+  The **address usually will not read** on cards that
   print it over background artwork; type it, or use the back barcode, which
   carries it digitally.
 - **Passport**: photograph the photo page straight-on with the whole page in

@@ -27,6 +27,20 @@ below as 0.1.0, and work since then sits under Unreleased.
   testing). Auto-chosen crops are held to a higher plausibility bar than
   hand-drawn ones, since no human vouched for them. The address still often will
   not read when it is printed over background artwork; that is left to type.
+
+  Throughout, a wrong name is treated as strictly worse than no name, because
+  the packet is a legal filing and a blank field is one the user will notice. So
+  a rejected line never lets the line below it slide into its slot, and the
+  automatic path only accepts a two-line family/given pair: reading a lone
+  "MARIA ELENA" as a surname-plus-given would invent a name whenever the family
+  row failed to read. State and territory words are rejected as bare header
+  text but accepted as names wherever an AAMVA field number or an LN/FN label
+  vouches for the line, so surnames like Washington and West read normally
+  instead of being dropped along with the header. Even the hand-drawn crop has a
+  floor: a name field holds a handful of words, so a dozen short ones is the
+  background artwork misread, and a result with no substantial word in it is
+  refused. Pressing Read without drawing a box sends the whole card through, and
+  that used to come back as a surname of "Ay A Ng Sy Is We Eai Os Fe Ee".
 - **Optional passphrase encryption at rest.** ⚙ Your details has a "Protect
   saved data with a passphrase" switch. When on, the profile and standing
   details are stored as AES-256-GCM envelopes under a key derived by Argon2id

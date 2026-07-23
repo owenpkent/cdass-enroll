@@ -86,9 +86,11 @@ src/extract/aamva.js     PDF417 payload -> profile fields (whitelisted AAMVA
 src/extract/mrz.js       Passport TD3 MRZ parser with check-digit validation
 src/extract/ssncard.js   SSN + name out of OCR text
 src/extract/dlfront.js   License-front OCR fallback: name, date of birth + address
-                         (+ parseNameRegion for a tight name-only crop)
+                         (+ parseNameRegion for a tight name-only crop, and
+                         autoNameFromLines to pick the name out of per-line OCR).
                          scanner.js locates text lines by dark-pixel row profile
-                         (no OCR/ML) and re-OCRs the name block on its own
+                         (no OCR/ML) and re-OCRs each on its own; all the text
+                         parsing stays here, where tests/smoke.mjs can reach it
 src/extract/filledpacket.js
                          A filled packet PDF -> profile/employer, by running
                          packet2026's PACKET2026_TEXT table backwards. No OCR:

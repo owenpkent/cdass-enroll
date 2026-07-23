@@ -6,7 +6,7 @@ import { createWorker } from "tesseract.js";
 import { parseAamva, AAMVA_READ_OPTIONS } from "./aamva.js";
 import { parseMrz } from "./mrz.js";
 import { parseSsnCard } from "./ssncard.js";
-import { parseLicenseFront, parseNameRegion } from "./dlfront.js";
+import { parseLicenseFront, parseNameRegion, autoNameFromLines } from "./dlfront.js";
 
 prepareZXingModule({
   overrides: {
@@ -241,6 +241,10 @@ export async function readLicenseRegion(source, sx, sy, sw, sh) {
   throw new Error("No barcode in the selected area. Draw the box tightly around just the striped barcode and try again.");
 }
 
+// Safely under the ~16.7 Mpx canvas area limit on iOS Safari, the tightest of
+// the mainstream browser caps and the one the phone-photo path runs into.
+const MAX_CROP_PIXELS = 12e6;
+
 // OCR a user-drawn crop of just the name region, then parse it as a name (vs
 // readLicenseRegion, which decodes the crop as a barcode). The crop is only
 // upscaled, deliberately NOT contrast-stretched or sharpened: on these cards
@@ -253,7 +257,14 @@ export async function readLicenseRegion(source, sx, sy, sw, sh) {
 function cropCanvas(source, sx, sy, sw, sh) {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  const scale = Math.min(3, Math.max(2, 1200 / sw));
+  // The 2x floor is for a tight line crop, which is small. It must not apply to
+  // a large region: pressing Read without drawing a box passes the whole photo,
+  // and doubling a 4032x3024 phone shot is 48 megapixels, past the ~16.7 Mpx
+  // canvas area iOS Safari allows. Over the limit the canvas comes back blank
+  // and OCR reads nothing, which surfaces as "couldn't read a name" for a reason
+  // that has nothing to do with the crop. So cap the area, letting scale fall
+  // below 1 for a big region the way enhanceCanvas already normalizes downward.
+  const scale = Math.min(3, Math.max(2, 1200 / sw), Math.sqrt(MAX_CROP_PIXELS / (sw * sh)));
   canvas.width = Math.max(1, Math.round(sw * scale));
   canvas.height = Math.max(1, Math.round(sh * scale));
   ctx.drawImage(source, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
@@ -266,9 +277,13 @@ function cropCanvas(source, sx, sy, sw, sh) {
 // OCR every detected text line as its own tight crop, in document order. One
 // pass per line; a tight crop reads far better than the whole card, so this is
 // how the fields are actually recovered when whole-card OCR returns noise.
-async function ocrTextLines(source, cap = 12) {
+// These passes are sequential and there can be a dozen, which is a long wait on
+// a phone, so `onProgress` reports the count as it goes.
+async function ocrTextLines(source, onProgress, cap = 12) {
+  const rects = detectTextLines(source).slice(0, cap);
   const out = [];
-  for (const rect of detectTextLines(source).slice(0, cap)) {
+  for (const rect of rects) {
+    onProgress?.(`Reading the card line by line... (${out.length + 1} of ${rects.length})`);
     out.push({ rect, text: await ocr(cropCanvas(source, rect.x, rect.y, rect.w, rect.h)) });
   }
   return out;
@@ -304,6 +319,13 @@ async function loadOrientedBitmap(file) {
 // bridged (anti-aliasing within one line); separate lines stay separate, and the
 // height filter drops the oversized header. Returns rects in SOURCE pixels, top
 // to bottom. `source` must be upright (see loadOrientedBitmap).
+//
+// This assumes the standard landscape card: photo on the left, data column on
+// the right. Vertical under-21 cards (Colorado issues these) put the photo on
+// top, so the column crop and the height filter are both wrong for them and no
+// lines come back. That degrades to the "draw a box around the name" offer
+// rather than to a misread, which is the acceptable failure; a portrait layout
+// would need its own detector.
 function detectTextLines(source) {
   const W = 1000;
   const s = W / source.width;
@@ -366,63 +388,13 @@ function detectTextLines(source) {
   return rects;
 }
 
-// An automatically chosen crop has no human vouching for it, so hold it to a
-// higher bar than a hand-drawn one: a real name has a substantial word, OCR
-// noise off the security background ("Oos", "Hou") does not.
-function isPlausibleAutoName(f) {
-  if (!f || !f.first || !f.last) return false;
-  const a = f.first.replace(/[^A-Za-z]/g, "");
-  const b = f.last.replace(/[^A-Za-z]/g, "");
-  return a.length + b.length >= 8 && Math.max(a.length, b.length) >= 4;
-}
-
-// An auto-chosen crop is padded, so OCR can catch a sliver of the neighbouring
-// line as a short trailing token ("Lynne Sa"). Drop those. A lone single letter
-// is kept: that is a middle initial, not noise.
-function trimNoisyMiddle(f) {
-  if (!f?.middle) return f;
-  const toks = f.middle.split(/\s+/).filter(Boolean);
-  while (toks.length > 1 && toks[toks.length - 1].length <= 2) toks.pop();
-  const middle = toks.join(" ");
-  return middle ? { ...f, middle } : { first: f.first, last: f.last };
-}
-
-// Pick the name out of already-OCR'd text lines (no further OCR). A name is
-// usually two adjacent, left-aligned lines (family above given), so each line is
-// tried joined with the next before being tried alone. On a real card the name
-// sits at the left edge of the data column while DOB / DL# / expiry sit further
-// right, so left-aligned candidates are considered first. Returns name fields,
-// or null.
-function autoNameFromLines(lines, width) {
-  if (!lines.length) return null;
-  const leftEdge = Math.min(...lines.map((l) => l.rect.x));
-  const nearLeft = (c) => c.rect.x - leftEdge < width * 0.06;
-  const cands = [];
-  for (let i = 0; i < lines.length; i++) {
-    const a = lines[i];
-    const b = lines[i + 1];
-    if (
-      b &&
-      b.rect.y - (a.rect.y + a.rect.h) < a.rect.h * 1.2 &&
-      Math.abs(a.rect.x - b.rect.x) < width * 0.03
-    )
-      cands.push({ rect: a.rect, text: `${a.text}\n${b.text}` });
-    cands.push({ rect: a.rect, text: a.text });
-  }
-  for (const c of [...cands.filter(nearLeft), ...cands.filter((x) => !nearLeft(x))]) {
-    const fields = parseNameRegion(c.text);
-    if (isPlausibleAutoName(fields)) return trimNoisyMiddle(fields);
-  }
-  return null;
-}
-
 /**
  * OCR the FRONT of a driver's license for the name, date of birth, and address
  * (the fields the barcode would give, when the barcode won't scan). Best-effort:
  * front layouts vary by state, so the result must be verified. The name is read
  * more reliably from the back-of-license barcode or the Social Security card.
  */
-export async function scanLicenseFront(imageFile) {
+export async function scanLicenseFront(imageFile, onProgress) {
   const input = (await enhanceCanvas(imageFile).catch(() => null)) ?? imageFile;
   const text = await ocr(input);
   const fields = parseLicenseFront(text) ?? {};
@@ -434,7 +406,7 @@ export async function scanLicenseFront(imageFile) {
   // background artwork and often still will not read; that is left to type.
   if (!fields.first || !fields.last || !fields.dob || !fields.city) {
     const upright = await loadOrientedBitmap(imageFile).catch(() => null);
-    const lines = upright ? await ocrTextLines(upright).catch(() => []) : [];
+    const lines = upright ? await ocrTextLines(upright, onProgress).catch(() => []) : [];
     if (lines.length) {
       const perLine = parseLicenseFront(lines.map((l) => l.text).join("\n")) ?? {};
       for (const [k, v] of Object.entries(perLine)) if (!fields[k]) fields[k] = v;

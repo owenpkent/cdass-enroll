@@ -351,7 +351,9 @@ function renderMain() {
   async function handleScan(file, scanFn, label, onFail) {
     setScanStatus("busy", `Reading ${label} locally... (first OCR run takes a few seconds)`);
     try {
-      const { fields, source } = await scanFn(file);
+      // The license-front scan can run a dozen sequential OCR passes, so it
+      // reports progress; the other scanners ignore the callback.
+      const { fields, source } = await scanFn(file, (msg) => setScanStatus("busy", msg));
       const changed = applyScanFields(fields);
       const warn = fields.passportNumberUnverified
         ? ` Passport number "${fields.passportNumberUnverified}" failed its check digit; verify it manually.`

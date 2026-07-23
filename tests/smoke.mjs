@@ -14,7 +14,7 @@ import { fillW4 } from "../src/fill/w4.js";
 import { parseAamva } from "../src/extract/aamva.js";
 import { parseMrz } from "../src/extract/mrz.js";
 import { parseSsnCard } from "../src/extract/ssncard.js";
-import { parseLicenseFront, parseNameRegion } from "../src/extract/dlfront.js";
+import { parseLicenseFront, parseNameRegion, autoNameFromLines } from "../src/extract/dlfront.js";
 
 let failures = 0;
 function expect(label, cond, detail = "") {
@@ -181,7 +181,29 @@ expect(
   JSON.stringify(numbered)
 );
 expect("DL front: no address in junk text", parseLicenseFront("CLASS C\nEYES BRO\nHGT 5-06") === null, "");
-expect("DL front: no name in junk text", parseLicenseFront("CLASS C\nEYES BRO\nHGT 5-06") === null, "");
+// Name-shaped chrome must not become a name: two capitalised words on their own
+// line is exactly the positional fallback's pattern.
+expect(
+  "DL front: no name from chrome or the state header",
+  parseLicenseFront("COLORADO\nDRIVER LICENSE\nORGAN DONOR") === null,
+  JSON.stringify(parseLicenseFront("COLORADO\nDRIVER LICENSE\nORGAN DONOR"))
+);
+// A numbered field vouches for its line, so a place-word surname is taken as
+// the name it is. Washington is roughly the 140th most common US surname; the
+// old blanket stop list dropped it and silently left the last name blank.
+const placeName = parseLicenseFront("1 WASHINGTON\n2 JAMES EARL\nDOB 06/06/1986");
+expect(
+  "DL front: a place-word surname survives a numbered field",
+  placeName?.first === "James" && placeName?.middle === "Earl" && placeName?.last === "Washington",
+  JSON.stringify(placeName)
+);
+// ...but with nothing vouching for it, the same word is assumed to be the
+// header and no name is read.
+expect(
+  "DL front: an unmarked place word is not read as a name",
+  parseLicenseFront("WASHINGTON JAMES EARL")?.last === undefined,
+  JSON.stringify(parseLicenseFront("WASHINGTON JAMES EARL"))
+);
 
 // A birth date is never in the future: when OCR catches only the expiry (the
 // real failure on a glossy Colorado card), dob must stay blank, not take it.
@@ -216,6 +238,69 @@ expect(
   const one = parseNameRegion("DOE JANE MARIE");
   expect("name-crop: single line LAST FIRST MIDDLE", one?.first === "Jane" && one?.middle === "Marie" && one?.last === "Doe", JSON.stringify(one));
   expect("name-crop: pure junk yields null", parseNameRegion("!!!\n8 12345 —") === null, "");
+
+  // A middle initial is a real field on the packet forms, so it must survive
+  // the single-character filter that kills mangled field markers.
+  const initial = parseNameRegion("1 DOE\n2 JANE M");
+  expect("name-crop: keeps a trailing middle initial", initial?.first === "Jane" && initial?.middle === "M", JSON.stringify(initial));
+  const marker = parseNameRegion("l DOE\n2 JANE MARIE");
+  expect("name-crop: drops a leading one-letter marker", marker?.last === "Doe" && marker?.first === "Jane", JSON.stringify(marker));
+
+  // Numbered fields vouch for their lines, so a place-word surname reads.
+  const west = parseNameRegion("1 WEST\n2 MARIA ELENA");
+  expect("name-crop: place-word surname in a numbered field", west?.last === "West" && west?.first === "Maria", JSON.stringify(west));
+
+  // The regression that mattered most: when a line is rejected, the line below
+  // must NOT slide up into its slot. Unmarked "WEST / MARIA ELENA" used to come
+  // back as last "Maria", first "Elena" — a confidently wrong name on an I-9.
+  // A miss is the only acceptable answer.
+  expect("name-crop: a rejected line never shifts the name up", parseNameRegion(") WEST\n> MARIA ELENA") === null, JSON.stringify(parseNameRegion(") WEST\n> MARIA ELENA")));
+  expect("name-crop: a state header does not become the surname", parseNameRegion("COLORADO\nDOE JANE") === null, JSON.stringify(parseNameRegion("COLORADO\nDOE JANE")));
+
+  // Verbatim tesseract output from pressing Read with no box drawn, so the
+  // whole card goes through the lenient parser. It used to yield a surname of
+  // "Ay A Ng Sy Is We Eai Os Fe Ee" and report "filled 3 fields".
+  const wholeCard = parseNameRegion("Ay a Ng Sy Is We Eai Os Fe Ee\nWan a An Van Ae Oh As F E P A Rf Vv");
+  expect("name-crop: whole-card background noise is refused", wholeCard === null, JSON.stringify(wholeCard));
+  // Short fragments clear the per-token test but have no substantial word.
+  expect("name-crop: a fragment with no substantial word is refused", parseNameRegion("Oe Aa\nEs Uo") === null, JSON.stringify(parseNameRegion("Oe Aa\nEs Uo")));
+  // ...unless the field number vouches for the line, which is what keeps
+  // genuinely short names readable.
+  const shortName = parseNameRegion("1 NG\n2 LI");
+  expect("name-crop: a short name survives when numbered", shortName?.last === "Ng" && shortName?.first === "Li", JSON.stringify(shortName));
+}
+
+// ---- Automatic name pick from detected text lines (no human in the loop) ----
+{
+  // Rects mimic detectTextLines output: a left-aligned name pair in the data
+  // column, with DOB set further right the way a real card prints it.
+  const at = (x, y, w = 300) => ({ x, y, w, h: 30 });
+  const lines = [
+    { rect: at(400, 40, 500), text: "COLORADO" },
+    { rect: at(400, 120), text: "BRAUNSCHWEIG" },
+    { rect: at(400, 160), text: "VEORIA LYNNE" },
+    { rect: at(700, 200), text: "DOB 08/23/1963" },
+  ];
+  const auto = autoNameFromLines(lines, 1600);
+  expect(
+    "auto-name: picks the adjacent left-aligned pair",
+    auto?.last === "Braunschweig" && auto?.first === "Veoria" && auto?.middle === "Lynne",
+    JSON.stringify(auto)
+  );
+  // A padded auto crop catches a sliver of the next line as a short token.
+  const slivered = autoNameFromLines(
+    [{ rect: at(400, 120), text: "BRAUNSCHWEIG" }, { rect: at(400, 160), text: "VEORIA LYNNE Sa" }],
+    1600
+  );
+  expect("auto-name: trims a two-letter sliver off the middle name", slivered?.middle === "Lynne", JSON.stringify(slivered));
+  // Background noise clears the per-token test but not the plausibility bar.
+  expect("auto-name: rejects OCR noise", autoNameFromLines([{ rect: at(400, 120), text: "Oos Hou" }], 1600) === null, "");
+  // A place-word surname with nothing vouching for it is a miss, never a shift.
+  expect(
+    "auto-name: place-word line is a miss, not a shifted name",
+    autoNameFromLines([{ rect: at(400, 120), text: "WEST" }, { rect: at(400, 160), text: "MARIA ELENA" }], 1600) === null,
+    JSON.stringify(autoNameFromLines([{ rect: at(400, 120), text: "WEST" }, { rect: at(400, 160), text: "MARIA ELENA" }], 1600))
+  );
 }
 
 // ---- SSN card OCR text ----
