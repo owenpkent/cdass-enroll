@@ -250,7 +250,7 @@ export async function readLicenseRegion(source, sx, sy, sw, sh) {
 // upscaled crop best. A tight crop of just the name reads far better than the
 // whole card, whose busy background defeats OCR. `source` is a drawable image
 // (ImageBitmap); sx/sy/sw/sh are the crop rect in source pixels.
-export async function readNameRegion(source, sx, sy, sw, sh) {
+function cropCanvas(source, sx, sy, sw, sh) {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   const scale = Math.min(3, Math.max(2, 1200 / sw));
@@ -260,6 +260,22 @@ export async function readNameRegion(source, sx, sy, sw, sh) {
   // Grayscale only, NO contrast stretch: desaturating drops the colored
   // background without amplifying it the way a contrast stretch does.
   grayscale(ctx, canvas.width, canvas.height);
+  return canvas;
+}
+
+// OCR every detected text line as its own tight crop, in document order. One
+// pass per line; a tight crop reads far better than the whole card, so this is
+// how the fields are actually recovered when whole-card OCR returns noise.
+async function ocrTextLines(source, cap = 12) {
+  const out = [];
+  for (const rect of detectTextLines(source).slice(0, cap)) {
+    out.push({ rect, text: await ocr(cropCanvas(source, rect.x, rect.y, rect.w, rect.h)) });
+  }
+  return out;
+}
+
+export async function readNameRegion(source, sx, sy, sw, sh) {
+  const canvas = cropCanvas(source, sx, sy, sw, sh);
   const fields = parseNameRegion(await ocr(canvas));
   if (fields) return { fields, source: "Name crop (OCR)" };
   throw new Error(
@@ -350,13 +366,6 @@ function detectTextLines(source) {
   return rects;
 }
 
-const union = (a, b) => ({
-  x: Math.min(a.x, b.x),
-  y: Math.min(a.y, b.y),
-  w: Math.max(a.x + a.w, b.x + b.w) - Math.min(a.x, b.x),
-  h: Math.max(a.y + a.h, b.y + b.h) - Math.min(a.y, b.y),
-});
-
 // An automatically chosen crop has no human vouching for it, so hold it to a
 // higher bar than a hand-drawn one: a real name has a substantial word, OCR
 // noise off the security background ("Oos", "Hou") does not.
@@ -378,40 +387,31 @@ function trimNoisyMiddle(f) {
   return middle ? { ...f, middle } : { first: f.first, last: f.last };
 }
 
-// Automatically read a name off a license front: detect the text lines, then OCR
-// the most promising crops (a tight crop OCRs far better than the whole card).
-// A name is usually two adjacent, left-aligned lines (family above given), so
-// those pairs are tried first; on a real Colorado card the name sits at the left
-// edge of the data column while DOB / DL# / expiry sit further right, so
-// left-aligned candidates are preferred. Capped at a handful of OCR passes so a
-// scan stays responsive. Returns the name fields, or null.
-async function autoReadName(source) {
-  const lines = detectTextLines(source);
+// Pick the name out of already-OCR'd text lines (no further OCR). A name is
+// usually two adjacent, left-aligned lines (family above given), so each line is
+// tried joined with the next before being tried alone. On a real card the name
+// sits at the left edge of the data column while DOB / DL# / expiry sit further
+// right, so left-aligned candidates are considered first. Returns name fields,
+// or null.
+function autoNameFromLines(lines, width) {
   if (!lines.length) return null;
-  const leftEdge = Math.min(...lines.map((l) => l.x));
-  const nearLeft = (r) => r.x - leftEdge < source.width * 0.06;
-  const pairs = [];
-  const singles = [];
+  const leftEdge = Math.min(...lines.map((l) => l.rect.x));
+  const nearLeft = (c) => c.rect.x - leftEdge < width * 0.06;
+  const cands = [];
   for (let i = 0; i < lines.length; i++) {
     const a = lines[i];
     const b = lines[i + 1];
-    if (b && b.y - (a.y + a.h) < a.h * 1.2 && Math.abs(a.x - b.x) < source.width * 0.03)
-      pairs.push(union(a, b));
-    singles.push(a);
+    if (
+      b &&
+      b.rect.y - (a.rect.y + a.rect.h) < a.rect.h * 1.2 &&
+      Math.abs(a.rect.x - b.rect.x) < width * 0.03
+    )
+      cands.push({ rect: a.rect, text: `${a.text}\n${b.text}` });
+    cands.push({ rect: a.rect, text: a.text });
   }
-  const cands = [
-    ...pairs.filter(nearLeft),
-    ...singles.filter(nearLeft),
-    ...pairs.filter((r) => !nearLeft(r)),
-    ...singles.filter((r) => !nearLeft(r)),
-  ];
-  for (const r of cands.slice(0, 8)) {
-    try {
-      const { fields } = await readNameRegion(source, r.x, r.y, r.w, r.h);
-      if (isPlausibleAutoName(fields)) return trimNoisyMiddle(fields);
-    } catch {
-      /* not a name; try the next crop */
-    }
+  for (const c of [...cands.filter(nearLeft), ...cands.filter((x) => !nearLeft(x))]) {
+    const fields = parseNameRegion(c.text);
+    if (isPlausibleAutoName(fields)) return trimNoisyMiddle(fields);
   }
   return null;
 }
@@ -426,15 +426,22 @@ export async function scanLicenseFront(imageFile) {
   const input = (await enhanceCanvas(imageFile).catch(() => null)) ?? imageFile;
   const text = await ocr(input);
   const fields = parseLicenseFront(text) ?? {};
-  // Whole-card OCR rarely gets the name off a modern card (the security
-  // background swamps it), so when it doesn't, locate the text lines and OCR the
-  // name block on its own, which reads far better. Same trick the manual
-  // "box the name" cropper uses, applied automatically.
-  if (!fields.first && !fields.last) {
+  // Whole-card OCR gets little off a modern card (the security background
+  // swamps it), so when fields are missing, re-read the card line by line: each
+  // detected text line is OCR'd as its own tight crop, which reads far better.
+  // Measured on a real Colorado card, this recovers the name and the date of
+  // birth that whole-card OCR turned into noise. The address sits over the
+  // background artwork and often still will not read; that is left to type.
+  if (!fields.first || !fields.last || !fields.dob || !fields.city) {
     const upright = await loadOrientedBitmap(imageFile).catch(() => null);
-    if (upright) {
-      const auto = await autoReadName(upright).catch(() => null);
-      if (auto) Object.assign(fields, auto);
+    const lines = upright ? await ocrTextLines(upright).catch(() => []) : [];
+    if (lines.length) {
+      const perLine = parseLicenseFront(lines.map((l) => l.text).join("\n")) ?? {};
+      for (const [k, v] of Object.entries(perLine)) if (!fields[k]) fields[k] = v;
+      if (!fields.first && !fields.last) {
+        const auto = autoNameFromLines(lines, upright.width);
+        if (auto) Object.assign(fields, auto);
+      }
     }
   }
   if (Object.keys(fields).length) return { fields, source: "Driver's license front (OCR)" };

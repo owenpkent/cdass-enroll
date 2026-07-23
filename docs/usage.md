@@ -56,12 +56,15 @@ The scan card is at the top of the page. Use a phone photo or any image file:
   reads more reliably from the back barcode or the Social Security card). Front
   layouts vary by state, so verify these fields; the license number and
   expiration still need typing. The security background on modern REAL-ID cards
-  usually defeats whole-card OCR of the name, so when that happens the scan
-  automatically finds the printed text lines and re-reads just the name block on
-  its own, which works far better. If even that misses, the app offers
+  defeats whole-card OCR, so when fields come back missing the scan
+  automatically finds the printed text lines and re-reads each one as its own
+  tight crop, which works far better; on a real Colorado card that recovers the
+  name and the date of birth. If the name still misses, the app offers
   **"Draw a box around the name"**: box the name lines yourself and it OCRs that
   tight crop. The date of birth is left blank rather than guessed when OCR only
-  catches the expiry date.
+  catches the expiry date. The **address usually will not read** on cards that
+  print it over background artwork; type it, or use the back barcode, which
+  carries it digitally.
 - **Passport**: photograph the photo page straight-on with the whole page in
   frame. The app reads the two machine-readable `<<<` lines and validates
   their check digits. The first OCR run takes a few seconds to warm up.

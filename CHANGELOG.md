@@ -8,21 +8,25 @@ below as 0.1.0, and work since then sits under Unreleased.
 ## [Unreleased]
 
 ### Added
-- **The license front now reads the name, by cropping to it.** Whole-card OCR
-  cannot read the name off a modern REAL-ID card: measured on a real Colorado
+- **The license front is now read line by line, not as a whole card.** Whole-card
+  OCR gets almost nothing off a modern REAL-ID card: measured on a real Colorado
   license, the holographic security background reduces tesseract's output to
-  noise (the name never appeared at all). A tight crop of just the name reads it
-  correctly with the same engine, so the scan now does that two ways. Manually,
-  a second cropper mode ("Draw a box around the name") OCRs a boxed region via
+  noise (the name never appeared at all, and the only date it caught was the
+  expiry). The same engine reads a *tight crop* of a single line correctly, so
+  when fields come back missing `scanLicenseFront` locates the printed text
+  lines with a dark-pixel row profile (no OCR, no ML: dark ink spikes over the
+  pale background even where OCR fails) and OCRs each line as its own crop, then
+  parses the combined text. On the test card that recovers both the full name
+  and the true date of birth. The name is picked from adjacent left-aligned line
+  pairs (family above given; DOB / DL# / expiry sit further right). Manually, a
+  second cropper mode ("Draw a box around the name") OCRs a boxed region via
   `readNameRegion` + the lenient `parseNameRegion`, which strips the punctuation
-  OCR makes of the tiny AAMVA field markers. Automatically, `scanLicenseFront`
-  locates the printed text lines with a dark-pixel row profile (no OCR, no ML:
-  dark ink spikes over the pale background even where OCR fails), then re-OCRs
-  the most name-like block. Crops are upscaled and grayscaled but deliberately
-  NOT contrast-stretched or sharpened; those steps amplify the background and
-  the field markers into letter-like noise (a "2" became "Rs" in testing).
-  Auto-chosen crops are held to a higher plausibility bar than hand-drawn ones,
-  since no human vouched for them.
+  OCR makes of the tiny AAMVA field markers. Crops are upscaled and grayscaled
+  but deliberately NOT contrast-stretched or sharpened; those steps amplify the
+  background and the field markers into letter-like noise (a "2" became "Rs" in
+  testing). Auto-chosen crops are held to a higher plausibility bar than
+  hand-drawn ones, since no human vouched for them. The address still often will
+  not read when it is printed over background artwork; that is left to type.
 - **Optional passphrase encryption at rest.** ⚙ Your details has a "Protect
   saved data with a passphrase" switch. When on, the profile and standing
   details are stored as AES-256-GCM envelopes under a key derived by Argon2id

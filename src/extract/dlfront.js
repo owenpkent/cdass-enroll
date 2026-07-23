@@ -21,7 +21,9 @@ export function parseLicenseFront(ocrText, now = Date.now()) {
   // Leaving it blank for the user to type is the safe failure.
   const dates = [];
   for (const line of lines) {
-    for (const m of line.matchAll(/\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})\b/g)) {
+    // Spaces around the separators are tolerated: OCR of a tight crop routinely
+    // reads "08/ 23/2003" for "08/23/2003".
+    for (const m of line.matchAll(/\b(\d{1,2})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(\d{4})\b/g)) {
       const mm = +m[1];
       const dd = +m[2];
       const yy = +m[3];
