@@ -8,7 +8,7 @@ import {
 } from "./schema.js";
 import * as store from "./store.js";
 import * as vault from "./crypto/vault.js";
-import { scanLicense, scanLicenseFront, scanPassport, scanSsnCard, readLicenseRegion } from "./extract/scanner.js";
+import { scanLicense, scanLicenseFront, scanPassport, scanSsnCard, readLicenseRegion, readNameRegion } from "./extract/scanner.js";
 import { readFilledPacket } from "./extract/filledpacket.js";
 import { fillPacket2026 } from "./fill/packet2026.js";
 import { fillI9Standalone } from "./fill/i9.js";
@@ -360,7 +360,13 @@ function renderMain() {
         "ok",
         `${source}: filled ${changed.size} field${changed.size === 1 ? "" : "s"} (${[...changed].join(", ") || "none new"}). Review below before generating.${warn}`
       );
-      cropArea.replaceChildren();
+      // A front scan that couldn't read the name: offer the name-crop path,
+      // which OCRs a tight box far more reliably than the whole card.
+      if (scanFn === scanLicenseFront && !state.profile.first && !state.profile.last) {
+        offerNameCrop(file);
+      } else {
+        cropArea.replaceChildren();
+      }
     } catch (e) {
       if (onFail) onFail(file, e);
       else setScanStatus("err", e.message);
@@ -404,10 +410,37 @@ function renderMain() {
     }
   }
 
+  // Two cropper modes: decode a boxed barcode, or OCR a boxed name region. Both
+  // reuse the same drag-a-box UI below; only the "read" step and the copy differ.
+  const BARCODE_MODE = {
+    read: readLicenseRegion,
+    busy: "Reading the selected area...",
+    hint: "Drag a box around just the striped barcode, then read it. A tight box around the bars works best.",
+  };
+  const NAME_MODE = {
+    read: readNameRegion,
+    busy: "Reading the name...",
+    hint: "Drag a box around just the name (the one or two name lines, not the address), then read it. A tight box reads far better than the whole card.",
+  };
+
+  // The name barely OCRs off a whole license front (the security background
+  // swamps it), but a tight crop of just the name reads well. When a front scan
+  // leaves the name empty, offer to box it.
+  function offerNameCrop(file) {
+    cropArea.replaceChildren(
+      h("p", { class: "note", style: "margin-bottom:0.4rem" },
+        "The name didn't read from the whole card. Box just the name and read that — it works much better."),
+      h("div", { class: "btnrow" },
+        h("button", { class: "btn primary", onclick: () => showCropper(file, null, NAME_MODE) }, "Draw a box around the name"),
+        h("button", { class: "btn", onclick: () => cropArea.replaceChildren() }, "Dismiss"))
+    );
+  }
+
   // When the license barcode won't auto-decode, show the photo and let the user
-  // box the barcode; that region is enlarged and decoded.
-  async function showCropper(file, err) {
-    setScanStatus("err", err.message);
+  // box the barcode; that region is enlarged and decoded. With NAME_MODE, the
+  // boxed region is OCR'd as a name instead.
+  async function showCropper(file, err, mode = BARCODE_MODE) {
+    if (err && err.message) setScanStatus("err", err.message);
     let bitmap;
     try {
       bitmap = await loadImageFile(file);
@@ -459,9 +492,9 @@ function renderMain() {
         onclick: async () => {
           const region = sel && sel.w > 8 && sel.h > 8 ? sel : { x: 0, y: 0, w: dw, h: dh };
           const inv = 1 / dispScale;
-          setScanStatus("busy", "Reading the selected area...");
+          setScanStatus("busy", mode.busy);
           try {
-            const { fields, source } = await readLicenseRegion(
+            const { fields, source } = await mode.read(
               bitmap,
               region.x * inv,
               region.y * inv,
@@ -481,7 +514,7 @@ function renderMain() {
     const cancelBtn = h("button", { class: "btn", onclick: () => cropArea.replaceChildren() }, "Cancel");
 
     cropArea.replaceChildren(
-      h("p", { class: "note", style: "margin-bottom:0.4rem" }, "Drag a box around just the striped barcode, then read it. A tight box around the bars works best."),
+      h("p", { class: "note", style: "margin-bottom:0.4rem" }, mode.hint),
       canvas,
       h("div", { class: "btnrow" }, readBtn, cancelBtn)
     );
@@ -635,7 +668,7 @@ function renderMain() {
         "div",
         { class: "scanrow" },
         scanButton("License barcode", "Back of card (most accurate)", scanLicense, showCropper),
-        scanButton("License front", "Front photo: DOB + address", scanLicenseFront),
+        scanButton("License front", "Front photo: name, DOB + address", scanLicenseFront, (file, e) => showCropper(file, e, NAME_MODE)),
         scanButton("Passport", "Photo page, straight on", scanPassport),
         scanButton("Social Security card", "Front, well lit", scanSsnCard)
       ),

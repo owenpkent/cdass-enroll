@@ -8,6 +8,21 @@ below as 0.1.0, and work since then sits under Unreleased.
 ## [Unreleased]
 
 ### Added
+- **The license front now reads the name, by cropping to it.** Whole-card OCR
+  cannot read the name off a modern REAL-ID card: measured on a real Colorado
+  license, the holographic security background reduces tesseract's output to
+  noise (the name never appeared at all). A tight crop of just the name reads it
+  correctly with the same engine, so the scan now does that two ways. Manually,
+  a second cropper mode ("Draw a box around the name") OCRs a boxed region via
+  `readNameRegion` + the lenient `parseNameRegion`, which strips the punctuation
+  OCR makes of the tiny AAMVA field markers. Automatically, `scanLicenseFront`
+  locates the printed text lines with a dark-pixel row profile (no OCR, no ML:
+  dark ink spikes over the pale background even where OCR fails), then re-OCRs
+  the most name-like block. Crops are upscaled and grayscaled but deliberately
+  NOT contrast-stretched or sharpened; those steps amplify the background and
+  the field markers into letter-like noise (a "2" became "Rs" in testing).
+  Auto-chosen crops are held to a higher plausibility bar than hand-drawn ones,
+  since no human vouched for them.
 - **Optional passphrase encryption at rest.** ⚙ Your details has a "Protect
   saved data with a passphrase" switch. When on, the profile and standing
   details are stored as AES-256-GCM envelopes under a key derived by Argon2id
@@ -125,6 +140,13 @@ below as 0.1.0, and work since then sits under Unreleased.
 - **Line endings** pinned to LF via `.gitattributes`.
 
 ### Fixed
+- **A license front could fill the expiry date as the date of birth.** The
+  "earliest date on the card wins" rule assumed OCR saw every date. When the
+  background defeats it and only the expiry survives (exactly what happens on a
+  real Colorado card), the earliest date *was* the expiry, so a 2029 expiry was
+  silently written into the date of birth. Candidate dates are now filtered to
+  those already in the past, since a birth date never is in the future; when
+  nothing qualifies the field stays blank for the user to type.
 - **The Tax Exemptions Form went out with Part 1 blank.** The form requires one
   of its four statements ("check the box for the one that is true for you"), but
   the profile's relation-to-employer dropdown started empty and every page-11
