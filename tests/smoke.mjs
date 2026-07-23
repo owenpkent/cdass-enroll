@@ -14,7 +14,7 @@ import { fillW4 } from "../src/fill/w4.js";
 import { parseAamva } from "../src/extract/aamva.js";
 import { parseMrz } from "../src/extract/mrz.js";
 import { parseSsnCard } from "../src/extract/ssncard.js";
-import { parseLicenseFront } from "../src/extract/dlfront.js";
+import { parseLicenseFront, parseNameRegion } from "../src/extract/dlfront.js";
 
 let failures = 0;
 function expect(label, cond, detail = "") {
@@ -168,7 +168,55 @@ expect(
   front?.street === "1234 Main St" && front?.city === "Denver" && front?.state === "CO" && front?.zip === "80203",
   JSON.stringify(front)
 );
+expect(
+  "DL front name (positional LAST FIRST MIDDLE)",
+  front?.first === "Jane" && front?.middle === "Marie" && front?.last === "Doe",
+  JSON.stringify(front)
+);
+// AAMVA numbered fields; the address line must not be mistaken for a name.
+const numbered = parseLicenseFront("1 DOE\n2 JANE MARIE\n2 ELM ST\nDOB 06/06/1986");
+expect(
+  "DL front name (numbered fields, address ignored)",
+  numbered?.first === "Jane" && numbered?.middle === "Marie" && numbered?.last === "Doe",
+  JSON.stringify(numbered)
+);
 expect("DL front: no address in junk text", parseLicenseFront("CLASS C\nEYES BRO\nHGT 5-06") === null, "");
+expect("DL front: no name in junk text", parseLicenseFront("CLASS C\nEYES BRO\nHGT 5-06") === null, "");
+
+// A birth date is never in the future: when OCR catches only the expiry (the
+// real failure on a glossy Colorado card), dob must stay blank, not take it.
+expect(
+  "DL front: future-only dates yield no dob",
+  parseLicenseFront("4b EXP 08/23/2029\nSOME NOISE")?.dob === undefined,
+  JSON.stringify(parseLicenseFront("4b EXP 08/23/2029\nSOME NOISE"))
+);
+expect(
+  "DL front: expiry never wins over an earlier real dob",
+  parseLicenseFront("DOB 06/06/1986\n4b EXP 09/30/2030")?.dob === "1986-06-06",
+  ""
+);
+
+// ---- Name-crop OCR (tight box around just the name; lenient parser) ----
+// Two lines, family then given, with the tiny AAMVA field numbers OCR'd as noise.
+{
+  const clean = parseNameRegion("1 BRAUNSCHWEIG\n2 VEORIA LYNNE\n8 15985 W 13TH AVE");
+  expect(
+    "name-crop: numbered two-line family/given",
+    clean?.first === "Veoria" && clean?.middle === "Lynne" && clean?.last === "Braunschweig",
+    JSON.stringify(clean)
+  );
+  // The real tesseract read of the crop: leading markers become punctuation junk.
+  const noisy = parseNameRegion(") BRAUNSCHWEIG\n> VEORIA LYNNE\n| gc 18985 W 13TH AVE");
+  expect(
+    "name-crop: strips OCR punctuation noise, stops before the address",
+    noisy?.first === "Veoria" && noisy?.middle === "Lynne" && noisy?.last === "Braunschweig",
+    JSON.stringify(noisy)
+  );
+  // Single line falls back to LAST FIRST MIDDLE.
+  const one = parseNameRegion("DOE JANE MARIE");
+  expect("name-crop: single line LAST FIRST MIDDLE", one?.first === "Jane" && one?.middle === "Marie" && one?.last === "Doe", JSON.stringify(one));
+  expect("name-crop: pure junk yields null", parseNameRegion("!!!\n8 12345 —") === null, "");
+}
 
 // ---- SSN card OCR text ----
 const ssnFields = parseSsnCard("SOCIAL SECURITY\n123-45-6789\nJane Marie Doe\nSIGNATURE");

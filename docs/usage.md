@@ -52,9 +52,16 @@ The scan card is at the top of the page. Use a phone photo or any image file:
   is the most accurate license scan. If it won't decode, the app shows the
   photo and lets you drag a box around just the barcode to retry.
 - **License front**: if the barcode won't read, photograph the **front** of
-  the card. OCR best-effort fills the date of birth and address (the name comes
-  from the Social Security card). Front layouts vary by state, so verify these
-  fields; the license number and expiration still need typing.
+  the card. OCR best-effort fills the name, date of birth, and address (the name
+  reads more reliably from the back barcode or the Social Security card). Front
+  layouts vary by state, so verify these fields; the license number and
+  expiration still need typing. The security background on modern REAL-ID cards
+  usually defeats whole-card OCR of the name, so when that happens the scan
+  automatically finds the printed text lines and re-reads just the name block on
+  its own, which works far better. If even that misses, the app offers
+  **"Draw a box around the name"**: box the name lines yourself and it OCRs that
+  tight crop. The date of birth is left blank rather than guessed when OCR only
+  catches the expiry date.
 - **Passport**: photograph the photo page straight-on with the whole page in
   frame. The app reads the two machine-readable `<<<` lines and validates
   their check digits. The first OCR run takes a few seconds to warm up.

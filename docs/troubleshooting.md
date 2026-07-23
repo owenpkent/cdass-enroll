@@ -25,7 +25,7 @@ diagnosing a scan that will not read: [id-barcode.md](id-barcode.md).
   the striped barcode tightly and the app enlarges that region and retries,
   which rescues a barcode that was small in the frame.
 - No luck with the barcode? Use the **License front** scan instead: it OCRs the
-  front for date of birth and address (best-effort, verify it). Or type the
+  front for name, date of birth, and address (best-effort, verify it). Or type the
   details in (license number, state, expiration, address, and DOB are all
   editable). Very worn cards sometimes have unreadable barcodes.
 
