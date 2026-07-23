@@ -132,9 +132,9 @@ printing.
   can enroll the next one.
 - Generated PDFs contain the attendant's SSN. Store or shred them the way
   you would any tax document.
-- Anything you keep still auto-clears after the retention period (30 days
-  since last edit by default, adjustable under ⚙ Your details). Your standing
-  details persist and re-seed.
+- Anything you keep still clears when you close the app, and again the next time
+  you open it; there is no setting to keep it longer. Your standing details
+  persist and re-seed.
 - ⚙ Your details can export a JSON backup before the data expires. The export
   is plaintext even when at-rest encryption is on, so keep it somewhere
   encrypted if you keep it at all.
@@ -148,8 +148,8 @@ printing.
   decrypt for the session. Closing the tab re-locks it; **Lock now** re-locks
   without closing.
 - **Change passphrase** re-keys the stored data; **Turn off encryption** writes
-  it back as plaintext. The auto-clear retention period keeps working whether or
-  not encryption is on, and even while locked.
+  it back as plaintext. The saved person is still cleared on close and on the
+  next launch whether or not encryption is on, and even while locked.
 - It protects the stored bytes if the device or its storage is taken. It does
   not protect a session you leave unlocked, and it is not a substitute for a
   locked OS account on a shared computer. See

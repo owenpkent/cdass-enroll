@@ -35,9 +35,12 @@ encrypts the profile and standing details with AES-256-GCM. The key is held
 only in memory as a non-extractable `CryptoKey`; the passphrase is entered once
 per session at an unlock gate. `src/store.js` keeps a synchronous load/save API
 by decrypting once into an in-memory cache at unlock and writing ciphertext
-asynchronously (serialized per key). The `touchedAt` timestamp stays in
-cleartext envelope metadata so retention auto-clear still runs while locked.
-This covers offline access to the stored bytes (theft, disk image, backup,
+asynchronously (serialized per key). Clearing the saved person needs no
+passphrase either: a `pagehide` handler wipes it on close, and
+`clearProfileOnStart()` wipes it again at boot as a backstop. Both just remove
+the envelope as an opaque blob, so no cleartext metadata (a timestamp or
+otherwise) needs to be kept alongside the ciphertext to make that work. This covers offline access
+to the stored bytes (theft, disk image, backup,
 another OS account); it is not sufficient on its own for the case where one
 person holds another's data. See [threat-model.md](threat-model.md).
 

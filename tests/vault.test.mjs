@@ -45,7 +45,7 @@ assert.equal(store.isUnlocked(), true);
 const rawProfile = localStorage.getItem("cdass.profile.v1");
 assert.ok(!rawProfile.includes(SSN), "ciphertext must not contain the SSN");
 assert.equal(JSON.parse(rawProfile)._enc, 1, "stored value is an envelope");
-assert.ok(JSON.parse(rawProfile).touchedAt > 0, "touchedAt stays cleartext for retention");
+assert.equal(JSON.parse(rawProfile).touchedAt, undefined, "no cleartext metadata leaks alongside the ciphertext");
 assert.equal(store.loadProfile().ssn, SSN, "decrypts back to the SSN while unlocked");
 ok("enabling encryption removes plaintext and round-trips");
 

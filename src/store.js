@@ -1,5 +1,10 @@
 // All persistence is browser localStorage on this machine. Nothing leaves it.
 //
+// The enrolled person's profile never survives a restart: it is cleared on
+// every launch (see clearProfileOnStart), so an SSN entered in one session is
+// gone the next. Only the standing "Your details" (member + employer of record)
+// persist, since they are reused on every packet.
+//
 // Optionally, the person and standing details are encrypted at rest with a
 // passphrase (see src/crypto/vault.js and docs/threat-model.md). Encryption is
 // opt-in: with it off, values are stored as plain JSON exactly as before; with
@@ -15,16 +20,8 @@ import * as vault from "./crypto/vault.js";
 const PROFILE_KEY = "cdass.profile.v1";
 const LEGACY_PROFILES_KEY = "cdass.profiles.v1"; // pre-simplification array of people
 const EMPLOYER_KEY = "cdass.employer.v1";
-const RETENTION_KEY = "cdass.retentionDays.v1";
 const VAULT_KEY = "cdass.vault.v1"; // presence of this key == encryption is on
 const CHECK_MARKER = "cdass-vault-v1-ok"; // encrypted under the key to verify the passphrase
-
-export const RETENTION_CHOICES = [
-  ["7", "7 days"],
-  ["30", "30 days (default)"],
-  ["90", "90 days"],
-  ["never", "Keep until cleared manually"],
-];
 
 // ---- encryption state (in memory only) ----
 let vaultKey = null; // CryptoKey when unlocked; null when encryption is off or locked
@@ -56,15 +53,16 @@ function isEnvelope(v) {
   return v && typeof v === "object" && v._enc === 1 && typeof v.ct === "string";
 }
 
-// Encrypt `value` and write it under `storageKey` with any cleartext `extra`
-// metadata (e.g. touchedAt, which purge needs while the store is locked).
-// Serialized per key so overlapping saves apply last-write-wins in call order.
-function queueWrite(storageKey, value, extra = {}) {
+// Encrypt `value` and write it under `storageKey`. Everything sensitive lives
+// inside the ciphertext; the only cleartext is the { _enc, iv, ct } envelope
+// shell. Serialized per key so overlapping saves apply last-write-wins in call
+// order.
+function queueWrite(storageKey, value) {
   const prev = writeChains.get(storageKey) || Promise.resolve();
   const next = prev
     .then(async () => {
       const env = await vault.encrypt(value, vaultKey);
-      localStorage.setItem(storageKey, JSON.stringify({ _enc: 1, ...extra, ...env }));
+      localStorage.setItem(storageKey, JSON.stringify({ _enc: 1, ...env }));
     })
     .catch((e) => {
       // Missing/failed writes degrade to a warning, never an exception.
@@ -88,19 +86,6 @@ async function readEncrypted(storageKey) {
     console.warn("decrypt failed for", storageKey, e);
     return null;
   }
-}
-
-export function getRetentionDays() {
-  const v = localStorage.getItem(RETENTION_KEY) ?? "30";
-  return v === "never" ? null : Number(v);
-}
-
-export function setRetention(value) {
-  localStorage.setItem(RETENTION_KEY, value);
-}
-
-export function getRetentionSetting() {
-  return localStorage.getItem(RETENTION_KEY) ?? "30";
 }
 
 /**
@@ -144,7 +129,7 @@ export function saveProfile(profile) {
       return;
     }
     cache.profile = profile;
-    queueWrite(PROFILE_KEY, profile, { touchedAt: profile.touchedAt });
+    queueWrite(PROFILE_KEY, profile);
     return;
   }
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
@@ -156,32 +141,19 @@ export function clearProfile() {
 }
 
 /**
- * Clear the stored person if untouched longer than the retention period.
- * Returns true if it was cleared. Works even while the store is locked: the
- * touchedAt timestamp is kept in cleartext envelope metadata (it is not
- * sensitive), so retention does not require the passphrase.
+ * Privacy default: the enrolled person's profile never survives a restart.
+ * Called once at boot to remove it (and any legacy multi-profile array).
+ * Returns true if there was something to clear, so the UI can note it. Works
+ * even while the store is locked: the encrypted envelope is removed as an
+ * opaque blob, no passphrase required.
  */
-export function purgeStaleProfile(now = Date.now()) {
-  const days = getRetentionDays();
-  if (days == null) return false;
-  let touched;
-  try {
-    const raw = JSON.parse(localStorage.getItem(PROFILE_KEY));
-    if (isEnvelope(raw)) {
-      touched = raw.touchedAt ?? now; // no timestamp yet -> one grace period
-    } else {
-      const p = raw ?? mostRecentLegacy();
-      if (!p) return false;
-      touched = p.touchedAt ?? now;
-    }
-  } catch {
-    return false;
-  }
-  if (touched < now - days * 24 * 60 * 60 * 1000) {
-    clearProfile();
-    return true;
-  }
-  return false;
+export function clearProfileOnStart() {
+  const had =
+    localStorage.getItem(PROFILE_KEY) != null ||
+    localStorage.getItem(LEGACY_PROFILES_KEY) != null;
+  clearProfile();
+  localStorage.removeItem(LEGACY_PROFILES_KEY);
+  return had;
 }
 
 export function loadEmployer() {
@@ -275,9 +247,7 @@ export async function enableEncryption(passphrase) {
     VAULT_KEY,
     JSON.stringify({ v: 1, kdf: { ...vault.KDF, salt: vault.bytesToB64(salt) }, check })
   );
-  await queueWrite(PROFILE_KEY, currentProfile, {
-    touchedAt: currentProfile.touchedAt ?? Date.now(),
-  });
+  await queueWrite(PROFILE_KEY, currentProfile);
   await queueWrite(EMPLOYER_KEY, currentEmployer);
 }
 
@@ -310,9 +280,7 @@ export async function changePassphrase(oldPass, newPass) {
     VAULT_KEY,
     JSON.stringify({ v: 1, kdf: { ...vault.KDF, salt: vault.bytesToB64(salt) }, check })
   );
-  await queueWrite(PROFILE_KEY, cache.profile ?? blankProfile(), {
-    touchedAt: cache.profile?.touchedAt ?? Date.now(),
-  });
+  await queueWrite(PROFILE_KEY, cache.profile ?? blankProfile());
   await queueWrite(EMPLOYER_KEY, cache.employer ?? blankEmployer());
   return true;
 }
