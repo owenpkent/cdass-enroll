@@ -73,7 +73,8 @@ carried to any other form.
    same pages, same live fields, with values filled in, so the user can still
    correct any field in a normal PDF reader before printing. Signatures are
    never fabricated: the app places only a signature image the signer supplies,
-   and every other party's signature line stays blank.
+   only onto the packet they confirm it belongs on, and every other party's
+   signature line stays blank.
 5. **Conservative correctness.** Checkboxes that assert facts (a live-in
    relationship, an age threshold, a tax status) are only checked when the
    stored data unambiguously supports them. Extracted values are shown for
@@ -453,6 +454,17 @@ CDASS template.
   advocate and caseworker use cases are inherently multi-client, and that is a
   redesign rather than a feature: multiple profiles mean isolation between them,
   a way to select one safely, and a retention policy per client.
+- **Reused data outlives the person it was entered for, and some of it signs
+  things.** Splitting storage into per-subject data (wiped every session) and
+  standing data (kept, because retyping it is the whole point) quietly assumes
+  every standing field is equally safe to carry forward. A stored signature
+  image breaks that assumption: it is reusable in exactly the same sense as an
+  address and yet applying it is a claim that a specific person signed a
+  specific document. This tool resolves it by keeping the signature standing but
+  making its *use* per-packet, with a confirmation that shows whose it is and
+  resets every session. The general lesson for the pattern: audit standing data
+  for anything that asserts rather than describes, and gate the assertion at the
+  moment of use rather than trusting the moment of entry.
 - **The likeliest real-world leak is the output, not the app.** A generated PDF
   carries every SSN the form asked for, lands in the Downloads folder, and then
   gets emailed, because emailing it is what the process asks people to do. No

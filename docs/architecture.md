@@ -77,7 +77,9 @@ src/main.js              All UI: single-page scan -> review -> generate flow,
                          schema-driven form rendering, the Your details panel
 src/style.css            Styling (plain CSS, no framework)
 src/schema.js            Single source of truth for profile/employer fields;
-                         both the UI and the fill mappings key off it
+                         both the UI and the fill mappings key off it. Also the
+                         money validators (moneyError/moneyErrors) the form and
+                         Generate share
 src/store.js             localStorage load/save, JSON export/import, wipe
 src/extract/scanner.js   Entry points; lazily boots the OCR worker, points
                          zxing/tesseract at the vendored assets
@@ -126,5 +128,18 @@ run.py                   Launcher: install-if-needed, dev/test/build/serve
   status, under-18, relationship to employer) are only checked when the
   profile data unambiguously supports them; otherwise they are left for the
   human. See forms.md.
+- **Standing data needs per-packet consent when it signs something.** The
+  employer signature is stored once and reused, which means it outlives the
+  person it was uploaded for and will happily go out on the next one's forms.
+  The fillers stay dumb (they draw whatever `emp.signature` holds); `main.js`
+  owns the decision through `genOptions.stampSignature`, which lives in memory
+  only, so it is false again on every launch and every new person, and passes a
+  blanked `signature` when it is off. Reuse is the whole point of standing
+  details, but reuse of a signature is a claim about who signed.
+- **A rate is never auto-corrected.** Money fields validate through
+  `moneyError` and a bad one blocks Generate with the field named. Formatting is
+  tidied (`$1,234.00` to `1234.00`); the amount never is. Rounding `33.517` to
+  `33.52` on someone's behalf would change what they get paid on a form they
+  sign, so the value stays as typed until a human resolves it.
 - **Smoke test is the regression net.** No framework; it fills real templates
   and the output is independently verified with pypdf during development.

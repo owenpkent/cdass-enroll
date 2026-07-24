@@ -165,6 +165,35 @@ below as 0.1.0, and work since then sits under Unreleased.
 - **Line endings** pinned to LF via `.gitattributes`.
 
 ### Fixed
+- **A saved employer signature could be stamped on the next person's packet.**
+  The signature is standing data under ⚙ Your details, so it survived everything
+  that clears a person: the per-session wipe, the pagehide handler, and "Start
+  over (new person)". Nothing on the Generate step said whose signature was
+  about to be applied, so one uploaded for an earlier packet went out on a later
+  one unnoticed, which is a signature on a legal document nobody chose to make.
+  It now stamps only when **Stamp this signature on the employer signature
+  lines** is ticked in Step 3. The tick lives in `state.genOptions`, never in
+  the store, so it is false again on every launch and on every new person, and
+  `generate()` passes the fillers an employer whose `signature` is blanked
+  unless it is ticked (no image is embedded at all, so nothing can reach the
+  page by another route). The upload records who the signature belongs to
+  (`signatureFor`, `signatureUploadedAt`, employer keys that are stored but
+  never rendered as inputs); Step 3 shows the image, that provenance, and an
+  explicit warning when the employer of record has changed since. A signature
+  saved before this change has no provenance and says so.
+- **A rate could go onto the packet as `33.517`.** Money fields rendered as
+  `<input type=number>` with no step, minimum, or maximum, and page 10 printed
+  whatever was in the box, so a stray keystroke put a three-decimal hourly rate
+  on a form the attendant signs. The same input type also reported `""` for
+  anything it could not parse, so a rate typed as `$18.50` stored as blank and
+  printed an empty rate box with nothing on screen to show for it. Money fields
+  are now text boxes validated by `moneyError`: dollars and cents only, within a
+  plausible hourly range, with an inline complaint under the box and a refusal
+  from **Generate & download** that names the field. Punctuation is tidied away
+  on blur (`$1,234.00` to `1234.00`, the amount untouched) and imported packets
+  get the same tidy, but nothing is ever rounded: `33.517` stays exactly as
+  typed until a human decides whether it was meant to be `33.51` or `33.52`,
+  because rounding it silently would change what someone gets paid.
 - **A license front could fill the expiry date as the date of birth.** The
   "earliest date on the card wins" rule assumed OCR saw every date. When the
   background defeats it and only the expiry survives (exactly what happens on a

@@ -4,7 +4,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName } from "pdf-lib";
 
 // blankProfile() uses crypto.randomUUID; provide it on older Node globals.
 if (!globalThis.crypto) globalThis.crypto = { randomUUID };
@@ -654,6 +654,75 @@ expect("no unresolved field names in any mapping", mappingWarnings.length === 0,
   expect("scrub clears all sensitive fields", stillSensitive.length === 0, stillSensitive.join(","));
   expect("scrub keeps name and rates", p.first === "Jane" && p.rateStandardCdass === "20.00", JSON.stringify({ first: p.first }));
   expect("scrub reports cleared keys", cleared.includes("ssn") && cleared.includes("account"), cleared.join(","));
+}
+
+// ---- Money validation: a rate is never silently rounded or silently dropped ----
+{
+  const { moneyError, moneyErrors, normalizeMoney } = await import("../src/schema.js");
+
+  expect("money: a clean rate passes", moneyError("18.50") === null && moneyError("20") === null, moneyError("18.50") ?? "");
+  expect("money: blank is allowed", moneyError("") === null && moneyError(undefined) === null, "");
+  expect("money: formatting is stripped, not the amount", normalizeMoney(" $1,234.00 ") === "1234.00", normalizeMoney(" $1,234.00 "));
+  expect("money: a dollar sign still validates", moneyError("$18.50") === null, moneyError("$18.50") ?? "");
+
+  // The reported bug: a third decimal reaches the rate form.
+  const overPrecise = moneyError("33.517");
+  expect(
+    "money: 33.517 is rejected, offering both readings",
+    overPrecise?.includes("33.51") && overPrecise.includes("33.52"),
+    String(overPrecise)
+  );
+  expect("money: an exact third decimal offers one reading", moneyError("33.500") === "Rates are dollars and cents. Did you mean 33.50?", String(moneyError("33.500")));
+  expect("money: junk is rejected", moneyError("18.5o") !== null && moneyError("about 18") !== null, "");
+  expect("money: an implausible rate is rejected", moneyError("0.25") !== null && moneyError("3351.70") !== null, "");
+
+  // Nothing rewrites the value: the typist resolves it.
+  const p = { rateStandardCdass: "33.517", rateEmergencyCdass: "45" };
+  const bad = moneyErrors(p);
+  expect("money: Generate is blocked on the bad field only", bad.length === 1 && bad[0].key === "rateStandardCdass", JSON.stringify(bad));
+  expect("money: the value is left exactly as typed", p.rateStandardCdass === "33.517", p.rateStandardCdass);
+}
+
+// ---- Employer signature: only stamped for the packet it was confirmed for ----
+{
+  const { blankEmployer } = await import("../src/schema.js");
+  expect(
+    "signature provenance keys exist on a blank employer",
+    "signatureFor" in blankEmployer() && "signatureUploadedAt" in blankEmployer(),
+    JSON.stringify(Object.keys(blankEmployer()))
+  );
+
+  // main.js hands the fillers an employer whose signature is blanked unless the
+  // stamp was confirmed for this packet. Blank means no image is embedded at
+  // all, so an unconfirmed signature cannot reach the page by any route.
+  const sigPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const countImages = async (bytes) => {
+    const doc = await PDFDocument.load(bytes);
+    let n = 0;
+    for (const [, obj] of doc.context.enumerateIndirectObjects())
+      if (obj?.dict?.get(PDFName.of("Subtype"))?.toString() === "/Image") n++;
+    return n;
+  };
+
+  const confirmed = { ...employer, signature: sigPng };
+  const withheld = { ...confirmed, signature: "" };
+  const i9Src = readFileSync(new URL("../public/forms/i9.pdf", import.meta.url));
+
+  // Withholding the signature has to be indistinguishable from never having
+  // uploaded one: same image objects in the file, nothing left behind.
+  for (const [label, src, fill] of [
+    ["packet", packet2026Src, fillPacket2026],
+    ["standalone I-9", i9Src, fillI9Standalone],
+  ]) {
+    const none = await countImages(await fill(src, profile, employer, opts));
+    const blanked = await countImages(await fill(src, profile, withheld, opts));
+    const stamped = await countImages(await fill(src, profile, confirmed, opts));
+    expect(
+      `${label}: an unconfirmed signature embeds nothing`,
+      blanked === none && stamped > blanked,
+      `none ${none}, withheld ${blanked}, stamped ${stamped}`
+    );
+  }
 }
 
 // ---- Single-profile store: clear-on-start + legacy migration (localStorage stubbed) ----

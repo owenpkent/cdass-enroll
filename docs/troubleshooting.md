@@ -115,6 +115,33 @@ Some are intentional. The 2026 packet's Direct Deposit date shares a PDF
 field with the EVV vendor date, so it is left for hand-dating. Signature
 fields are never filled by design.
 
+**The employer signature is missing from the packet**
+
+It is stamped only when **Stamp this signature on the employer signature lines**
+is ticked in Step 3, and that tick is off again every time the app restarts and
+every time you start a new person. This is deliberate: the signature is standing
+data that outlives the person it was uploaded for, and an unnoticed reuse means a
+packet signed by someone who never agreed to sign it. The status line after
+generating says which happened, and the Step 3 box shows the image, whose
+signature it is, and when it was uploaded.
+
+**Step 3 says the signature was uploaded for someone else**
+
+The employer of record under Your details no longer matches the name recorded
+when the signature was uploaded. Upload the right signature, or leave the box
+unticked and sign the employer lines by hand. A signature saved before the app
+recorded provenance says so instead of naming anyone; clear and re-upload it to
+get the name attached.
+
+**Generate refuses and points at a rate**
+
+A rate has to be a plain dollars-and-cents amount in a plausible hourly range,
+because it prints onto a form the attendant signs. `33.517`, `18.5o`, and
+`0.25` all stop the packet with the field named. The app will not round for you:
+`33.517` could be `33.51` or `33.52`, and picking one would change what someone
+gets paid. A leading `$` or thousands commas are fine and get tidied away when
+you leave the box.
+
 **The employer signature prints tiny**
 
 The overlay scales your image to the height of the signature line and scales the

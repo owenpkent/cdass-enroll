@@ -132,5 +132,8 @@ label.field input:disabled, label.field select:disabled { background: #eef1f4; c
 .status.busy { color: var(--warn); }
 
 .note { font-size: 0.85rem; color: var(--muted); }
+/* Inline complaint under a money box; the box keeps whatever was typed. */
+.fielderr { display: none; margin-top: 0.25rem; font-size: 0.8rem; color: var(--bad); }
+label.field:has(.fielderr:not([style*="none"])) input { border-color: var(--bad); }
 .privacy p { max-width: 70ch; }
 hr.soft { border: none; border-top: 1px solid var(--line); margin: 1rem 0; }
