@@ -8,6 +8,13 @@ below as 0.1.0, and work since then sits under Unreleased.
 ## [Unreleased]
 
 ### Added
+- **A Save details button in ⚙ Your details.** The standing details have always
+  written on every keystroke, but nothing on the page said so, which reads as
+  unsaved. The button confirms the write with a timestamp, and when encryption
+  is on it waits for the ciphertext to actually land rather than for the write
+  to be queued (`saveEmployer` now returns the queued promise). It deliberately
+  handles no locked-store case: locking swaps the whole app for the unlock gate,
+  so the panel cannot be on screen while the store is locked.
 - **The license front is now read line by line, not as a whole card.** Whole-card
   OCR gets almost nothing off a modern REAL-ID card: measured on a real Colorado
   license, the holographic security background reduces tesseract's output to
