@@ -175,8 +175,9 @@ export function saveEmployer(employer) {
       return;
     }
     cache.employer = employer;
-    queueWrite(EMPLOYER_KEY, employer);
-    return;
+    // Returned so a caller that wants to report the save (the Save button) can
+    // wait for the ciphertext to actually land, not just for it to be queued.
+    return queueWrite(EMPLOYER_KEY, employer);
   }
   localStorage.setItem(EMPLOYER_KEY, JSON.stringify(employer));
 }

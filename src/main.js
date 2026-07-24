@@ -749,6 +749,28 @@ function renderMain() {
 // ---------- settings: your details + privacy ----------
 function renderSettings() {
   const wrap = h("div");
+  const saveStatus = h("p", { class: "status" });
+
+  // These fields already write on every keystroke, so this button is not what
+  // makes a change stick. It exists because nothing on the page said so, which
+  // reads as unsaved. It confirms the write, and with encryption on it waits
+  // for the ciphertext to actually land before saying so. No locked-store case
+  // is handled here: locking swaps the whole app for the unlock gate, so this
+  // panel cannot be on screen while the store is locked.
+  async function saveNow() {
+    saveStatus.className = "status busy";
+    saveStatus.textContent = "Saving...";
+    try {
+      await store.saveEmployer(state.employer);
+      const at = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      saveStatus.className = "status ok";
+      saveStatus.textContent = `Saved at ${at}, on this machine only.`;
+    } catch (e) {
+      saveStatus.className = "status err";
+      saveStatus.textContent = `Could not save: ${e.message}`;
+    }
+  }
+
   wrap.append(
     h(
       "p",
@@ -756,6 +778,17 @@ function renderSettings() {
       "Your standing details, entered once and reused on every packet: the Member receiving care and the employer of record. These auto-fill from your saved file when present."
     ),
     renderSections(EMPLOYER_SECTIONS, state.employer, () => store.saveEmployer(state.employer)),
+    h(
+      "div",
+      { class: "card" },
+      h("div", { class: "btnrow" }, h("button", { class: "btn primary", onclick: saveNow }, "Save details")),
+      h(
+        "p",
+        { class: "note" },
+        "Changes save as you type, so you can leave this page without pressing anything. Save details is here to confirm it."
+      ),
+      saveStatus
+    ),
     renderPrivacyCard()
   );
   return wrap;
