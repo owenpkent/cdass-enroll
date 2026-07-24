@@ -46,4 +46,14 @@ CSP in index.html enforces this and should stay.
   an image the user uploads in Your details (`emp.signature`), overlaid on the
   employer signature lines. The attendant and all other parties (Member, FMS
   vendor, HCPF, preparer) sign by hand
+- The signature is standing data, so it outlives the person it was uploaded
+  for. Consent is per packet and lives in the UI, not the fillers:
+  `genOptions.stampSignature` (memory only, false on every launch and every new
+  person) decides, and `generate()` hands the fillers an employer with
+  `signature` blanked when it is off. Fillers stay dumb and draw whatever they
+  are given; keep the decision in `main.js`
+- Rates print onto a form the attendant signs, so money fields are validated
+  (`moneyError` in schema.js) and a bad one blocks Generate. Never round or
+  auto-correct an amount: tidying `$18.50` to `18.50` is fine, turning `33.517`
+  into `33.52` changes someone's pay and is the human's call
 - pypdf (Python) is the dev-side tool for dumping/verifying PDF fields

@@ -29,6 +29,12 @@ pages and the I-9 Section 2 line as an image overlay. Coordinates are the
 `EMPLOYER_SIGNATURE` table in `packet2026.js`; nudge them there if a signature
 sits off its line. Other parties' signature lines are never filled.
 
+The fillers stay dumb about consent: they draw whatever `emp.signature` holds.
+Deciding whether this packet gets the saved signature is `main.js`'s job, and it
+passes an employer with `signature` blanked unless the Step 3 stamp box was
+ticked for this packet. Keep it that way, or a signature uploaded for one
+person starts riding along on the next one's forms.
+
 **Crop the signature image to the ink, or the mark comes out small.**
 `overlaySignature` scales the image to the placement box's *height* (22pt on the
 packet lines), and it scales the whole image, blank margin included. So a margin

@@ -271,10 +271,75 @@ export function blankProfile() {
   return p;
 }
 
+// Employer keys the app maintains but never renders as an input: provenance for
+// the uploaded signature, recorded when it is uploaded so the Generate step can
+// say whose signature it is about to stamp.
+const EMPLOYER_META = ["signatureFor", "signatureUploadedAt"];
+
 export function blankEmployer() {
   const e = {};
   for (const s of EMPLOYER_SECTIONS) for (const f of s.fields) e[f.key] = "";
+  for (const k of EMPLOYER_META) e[k] = "";
   return e;
+}
+
+// A rate outside this range is a typo, not a wage: CDASS standard rates run in
+// the teens to thirties and the emergency rate is 45.
+const RATE_MIN = 1;
+const RATE_MAX = 200;
+
+/**
+ * Accept a money value written the way people type it ("$33.51", " 1,234.00 ")
+ * by dropping the formatting. Only punctuation goes; the amount is untouched.
+ */
+export function normalizeMoney(raw) {
+  return String(raw ?? "")
+    .trim()
+    .replace(/^\$\s*/, "")
+    .replace(/,/g, "")
+    .trim();
+}
+
+/**
+ * Describe what is wrong with a money value, or null when it is fine. Empty is
+ * fine: leaving a rate box blank and writing it in by hand is a valid choice.
+ *
+ * This deliberately does not round. 33.517 is a typo, and quietly turning it
+ * into 33.52 changes what someone gets paid, on a form they sign. The only
+ * person who gets to resolve that is the one who typed it, so the value stays
+ * exactly as entered and the packet does not generate until they fix it.
+ */
+export function moneyError(raw) {
+  const v = normalizeMoney(raw);
+  if (!v) return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(v)) {
+    // An over-precise number gets both readings offered back, since only the
+    // author knows whether 33.517 was meant to be 33.51 or 33.52.
+    if (/^\d+\.\d{3,}$/.test(v)) {
+      const down = v.slice(0, v.indexOf(".") + 3);
+      const near = Number(v).toFixed(2);
+      return down === near
+        ? `Rates are dollars and cents. Did you mean ${down}?`
+        : `Rates are dollars and cents. Did you mean ${down} or ${near}?`;
+    }
+    return "Enter a dollars-and-cents amount, like 18.50.";
+  }
+  const n = Number(v);
+  if (n < RATE_MIN) return `$${v} an hour looks too low. Check the rate.`;
+  if (n > RATE_MAX) return `$${v} an hour looks too high. Check the rate.`;
+  return null;
+}
+
+/** Every money field on the profile that is currently invalid, for Generate. */
+export function moneyErrors(profile) {
+  const out = [];
+  for (const s of PROFILE_SECTIONS)
+    for (const f of s.fields) {
+      if (f.type !== "money") continue;
+      const msg = moneyError(profile[f.key]);
+      if (msg) out.push({ key: f.key, label: f.label, message: msg });
+    }
+  return out;
 }
 
 /**

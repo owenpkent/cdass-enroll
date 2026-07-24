@@ -35,8 +35,9 @@ The app is a single page that handles one person at a time:
 3. **Step 2, complete their information**: fill what the scans can't know,
    such as banking and the standard hourly rate (the emergency rate defaults
    to $45). Review everything.
-4. **Step 3, generate**: set the dates, click Generate. Filled PDFs land in
-   your Downloads folder.
+4. **Step 3, generate**: set the dates, confirm whether your saved signature
+   belongs on this packet, click Generate. Filled PDFs land in your Downloads
+   folder.
 5. Print, review every page, sign and date by hand, submit to PPL.
 
 The full walkthrough, including scanning tips and what each form needs, is in
@@ -52,7 +53,10 @@ The full walkthrough, including scanning tips and what each form needs, is in
 
 Signatures are never fabricated. The app places only your employer signature,
 from an image you upload in Your details, on the employer lines; the attendant
-and everyone else sign by hand. The app also deliberately leaves a checkbox
+and everyone else sign by hand. A saved signature is standing data that outlives
+the person it was uploaded for, so it is stamped only when you tick the box in
+Step 3 confirming it belongs on *this* packet, and that tick clears on every
+restart and every new person. The app also deliberately leaves a checkbox
 blank wherever an attestation is ambiguous (details in
 [docs/forms.md](docs/forms.md)).
 
@@ -105,7 +109,8 @@ review them.
   Your details the first time it runs in a browser profile. It never
   overwrites existing settings and must never be committed. `signature` is a
   standing detail like any other, so a seed file can carry the signature image
-  as a PNG data URL.
+  as a PNG data URL; add `signatureFor` and `signatureUploadedAt` beside it if
+  you want Step 3 to name whose signature it is rather than asking.
 
 ## Documentation
 

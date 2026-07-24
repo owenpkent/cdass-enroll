@@ -25,8 +25,9 @@ packet, so enter it once:
 - **Employer signature** (optional): upload an image of your signature (a phone
   photo of it on white paper is fine; the app knocks out the background). **Crop
   it close to the writing.** The image is scaled to the height of the signature
-  line, margin and all, so a wide border around the mark shrinks the mark. It is
-  placed on the employer signature lines of every packet and the I-9. The
+  line, margin and all, so a wide border around the mark shrinks the mark. The
+  app records whose signature it is (the employer of record at the time of
+  upload) and shows that back in Step 3 before anything is stamped. The
   attendant and all other parties still sign by hand.
 
 Everything saves as you type. If `public/seed.local.json` exists (it does on
@@ -100,7 +101,9 @@ sections and fill what the scans cannot know:
 - **Pay rates**: the CDASS standard rate is per attendant (for reference,
   past hires were $15 in 2021 and $18 in late 2024). The emergency rate is
   pre-filled at $45; change it only if a specific attendant differs. Health
-  Maintenance rate boxes on the form are left blank.
+  Maintenance rate boxes on the form are left blank. Dollars and cents only: a
+  stray third decimal (`33.517`) is flagged under the box and stops Generate,
+  since rounding it for you would change what the attendant is paid.
 - **I-9 work authorization**: citizenship status; extra numbers only if they
   are a permanent resident or visa holder.
 - **W-4 withholding**: filing status and any Step 2-4 amounts. When in doubt
@@ -113,8 +116,17 @@ At the bottom of the page:
 - **Signature date**: printed next to every signature line (default today).
 - **First day of employment**: goes on the I-9 and W-4.
 - Leave "new service" checked for a new hire.
+- **Employer signature**: a saved signature is stamped only when you tick
+  **Stamp this signature on the employer signature lines**, and the tick clears
+  every time the app restarts and whenever you start a new person. The box shows
+  the signature, whose it is, and when it was uploaded, and warns if the
+  employer of record has changed since. Left unticked, every signature line
+  comes out blank for hand signing.
 - Click **Generate & download**. One PDF per selected form lands in
-  Downloads, named like `Doe-Jane-CDASS-packet-2026.pdf`.
+  Downloads, named like `Doe-Jane-CDASS-packet-2026.pdf`. Rates are checked
+  first: a rate that is not a plain dollars-and-cents amount (`33.517`) stops
+  the packet with a message rather than printing. The app never rounds it for
+  you, because that would change what someone gets paid.
 
 Each PDF is an exact, editable copy of the official packet with the fields
 filled in, so you can still adjust anything in your PDF reader before
@@ -124,9 +136,9 @@ printing.
 
 - Review **every page**. The app fills conservatively, but you are the one
   signing.
-- Sign and date by hand wherever a signature is required. If you uploaded an
-  employer signature in Your details, the employer lines are already signed; the
-  attendant and other parties still sign by hand. A few date boxes are
+- Sign and date by hand wherever a signature is required. If you ticked the
+  stamp box in Step 3, the employer lines are already signed; the attendant and
+  other parties still sign by hand. A few date boxes are
   intentionally left blank because of template quirks; see [forms.md](forms.md).
 - Pages that don't apply (I-9 Supplement A/B, rehire sections) stay blank.
 - Submit per PPL's current instructions. CO CDASS customer service:

@@ -20,6 +20,7 @@
 
 import { PDFDocument } from "pdf-lib";
 import { PACKET2026_TEXT, RATE_TABLE } from "../fill/packet2026.js";
+import { normalizeMoney } from "../schema.js";
 
 const text = (form, name) => {
   try {
@@ -182,8 +183,10 @@ export async function readFilledPacket(bytes) {
   for (const [program, t] of Object.entries(RATE_TABLE)) {
     const standard = text(form, t.standard);
     if (!standard) continue;
-    put(profile, "rateStandardCdass", standard);
-    put(profile, "rateEmergencyCdass", text(form, t.emergency));
+    // Packets in the wild carry "$33.51" as often as "33.51"; the dollar sign
+    // is dropped on the way in so the amount lands in the box clean.
+    put(profile, "rateStandardCdass", normalizeMoney(standard));
+    put(profile, "rateEmergencyCdass", normalizeMoney(text(form, t.emergency)));
     put(employer, "memberProgram", program);
     break;
   }

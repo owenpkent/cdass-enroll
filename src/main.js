@@ -5,6 +5,9 @@ import {
   blankEmployer,
   displayName,
   scrubSensitive,
+  moneyError,
+  moneyErrors,
+  normalizeMoney,
 } from "./schema.js";
 import * as store from "./store.js";
 import * as vault from "./crypto/vault.js";
@@ -20,7 +23,9 @@ import { todayIso } from "./fill/util.js";
 const state = {
   profile: blankProfile(),
   employer: blankEmployer(),
-  genOptions: { signatureDate: todayIso(), firstDay: "", newService: true },
+  // stampSignature lives here, not in the store, so it is false again on every
+  // launch: reusing a saved signature is a decision made once per session.
+  genOptions: { signatureDate: todayIso(), firstDay: "", newService: true, stampSignature: false },
   showSettings: false,
   locked: false,
   unlockError: "",
@@ -71,8 +76,11 @@ function h(tag, attrs = {}, ...children) {
 }
 
 // ---------- schema-driven form rendering ----------
+// money is a text box on purpose. <input type=number> reports "" for anything
+// it cannot parse, so a rate typed as "$18.50" would store as blank and print
+// an empty rate box with nothing on screen to show for it.
 function inputType(f) {
-  return { date: "date", email: "email", phone: "tel", money: "number", ssn: "text", text: "text" }[f.type] ?? "text";
+  return { date: "date", email: "email", phone: "tel", money: "text", ssn: "text", text: "text" }[f.type] ?? "text";
 }
 
 function renderSections(sections, obj, onChange) {
@@ -129,17 +137,46 @@ function renderSections(sections, obj, onChange) {
       } else if (f.type === "signature") {
         body.append(renderSignatureField(f, obj, onChange));
       } else {
+        // Money fields carry an inline complaint under the box. It only ever
+        // reports; the value is never rewritten behind the typist's back.
+        const err = f.type === "money" ? h("div", { class: "fielderr" }) : null;
+        const showError = () => {
+          if (!err) return;
+          const msg = moneyError(obj[f.key]);
+          err.textContent = msg ?? "";
+          err.style.display = msg ? "block" : "none";
+        };
         const inp = h("input", {
           type: inputType(f),
           value: obj[f.key] ?? "",
           placeholder: f.placeholder ?? "",
           oninput: (e) => {
             obj[f.key] = e.target.value;
+            showError();
             onChange(f.key);
           },
         });
+        if (f.type === "money") {
+          inp.inputMode = "decimal";
+          inp.dataset.money = "1"; // refreshInputs revalidates these after a scan or import
+
+          // Tidy "$18.50" to "18.50" on the way out of the field. Punctuation
+          // only, and only when the result is valid: a rate that is wrong stays
+          // on screen exactly as typed, so the correction is visibly the
+          // typist's, not the app's.
+          inp.addEventListener("change", () => {
+            const tidy = normalizeMoney(inp.value);
+            if (tidy !== inp.value && !moneyError(tidy)) {
+              inp.value = tidy;
+              obj[f.key] = tidy;
+              onChange(f.key);
+            }
+            showError();
+          });
+        }
         inp.dataset.key = f.key;
-        body.append(h("label", { class: "field" + (f.width === "s" ? " w-s" : "") }, f.label, inp));
+        showError();
+        body.append(h("label", { class: "field" + (f.width === "s" ? " w-s" : "") }, f.label, inp, err));
       }
     }
     sync();
@@ -154,7 +191,12 @@ function refreshInputs(container, obj, changedKeys) {
   for (const el of container.querySelectorAll("[data-key]")) {
     const k = el.dataset.key;
     if (!(k in obj)) continue;
-    if (el.value !== String(obj[k] ?? "")) el.value = obj[k] ?? "";
+    if (el.value !== String(obj[k] ?? "")) {
+      el.value = obj[k] ?? "";
+      // A rate arriving from a scan or an imported packet gets the same tidy
+      // and the same complaint as one typed by hand.
+      if (el.dataset.money) el.dispatchEvent(new Event("change"));
+    }
     if (changedKeys?.has(k)) {
       el.classList.add("flash");
       setTimeout(() => el.classList.remove("flash"), 1600);
@@ -199,15 +241,25 @@ async function cleanSignatureImage(file) {
 }
 
 // Schema "signature" field: upload an image, show a preview, store a PNG data URL.
+//
+// There is exactly one of these, the employer signature, and it is standing
+// data: uploaded once, reused on every packet. That is also how it ends up on
+// the wrong packet, since it outlives the person it was uploaded for. So the
+// upload also records whose signature it is and when it arrived, which Step 3
+// shows back before anything is stamped.
 function renderSignatureField(f, obj, onChange) {
   const preview = h("img", { class: "sigpreview", alt: "" });
+  const caption = h("p", { class: "note" });
   const show = () => {
     if (obj[f.key]) {
       preview.src = obj[f.key];
       preview.style.display = "block";
+      caption.textContent = signatureProvenance(obj);
+      caption.style.display = "block";
     } else {
       preview.removeAttribute("src");
       preview.style.display = "none";
+      caption.style.display = "none";
     }
   };
   const fileInp = h("input", {
@@ -220,6 +272,8 @@ function renderSignatureField(f, obj, onChange) {
       if (!file) return;
       try {
         obj[f.key] = await cleanSignatureImage(file);
+        obj.signatureFor = employerName(obj);
+        obj.signatureUploadedAt = todayIso();
         onChange(f.key);
         show();
       } catch (err) {
@@ -227,20 +281,38 @@ function renderSignatureField(f, obj, onChange) {
       }
     },
   });
+  const clear = () => {
+    obj[f.key] = "";
+    obj.signatureFor = "";
+    obj.signatureUploadedAt = "";
+    onChange(f.key);
+    show();
+  };
   show();
   return h(
     "div",
     { class: "field sigfield" },
     h("span", {}, f.label),
     preview,
+    caption,
     h(
       "div",
       { class: "btnrow" },
       h("button", { class: "btn", onclick: () => fileInp.click() }, "Upload signature image"),
-      h("button", { class: "btn", onclick: () => { obj[f.key] = ""; onChange(f.key); show(); } }, "Clear"),
+      h("button", { class: "btn", onclick: clear }, "Clear"),
       fileInp
     )
   );
+}
+
+const employerName = (emp) => [emp.employerFirst, emp.employerLast].filter(Boolean).join(" ");
+
+/** One line saying where a stored signature came from, for the eye before it. */
+function signatureProvenance(emp) {
+  if (!emp.signatureFor)
+    return "Uploaded before this app started recording whose signature it is. Confirm whose it is before stamping it on a packet.";
+  const when = emp.signatureUploadedAt ? ` on ${emp.signatureUploadedAt}` : "";
+  return `Uploaded${when} for ${emp.signatureFor}.`;
 }
 
 // ---------- shell ----------
@@ -585,25 +657,71 @@ function renderMain() {
   const newServiceCb = h("input", { type: "checkbox", onchange: (e) => (opts.newService = e.target.checked) });
   newServiceCb.checked = opts.newService;
 
+  // Nothing stamps the saved signature unless this is ticked, and it starts
+  // unticked every session (see state.genOptions), so a signature uploaded for
+  // one packet cannot ride along on the next person's without being looked at.
+  const stampCb = h("input", { type: "checkbox", onchange: (e) => (opts.stampSignature = e.target.checked) });
+  stampCb.checked = !!opts.stampSignature;
+
+  function renderStampConfirm() {
+    const emp = state.employer;
+    if (!emp.signature)
+      return h(
+        "p",
+        { class: "note" },
+        "No signature is on file, so every signature line is left to be signed by hand. Upload one under Your details to stamp the employer lines."
+      );
+    const current = employerName(emp);
+    const mismatch = emp.signatureFor && current && emp.signatureFor !== current;
+    return h(
+      "div",
+      { class: "card" },
+      h("label", { class: "check" }, stampCb, "Stamp this signature on the employer signature lines"),
+      h("img", { class: "sigpreview", src: emp.signature, alt: "" }),
+      h("p", { class: "note" }, signatureProvenance(emp)),
+      mismatch
+        ? h(
+            "p",
+            { class: "status err" },
+            `This signature was uploaded for ${emp.signatureFor}, but the employer of record is now ${current}. Upload the right one under Your details, or leave this unticked and sign by hand.`
+          )
+        : null
+    );
+  }
+
   async function generate() {
     const profile = state.profile;
     if (!packetCb.checked && !w4Cb.checked && !i9Cb.checked) return setGenStatus("err", "Select at least one form.");
+    // A rate goes onto a form the attendant signs, so one that is not dollars
+    // and cents stops here rather than going out at 33.517 an hour.
+    const bad = moneyErrors(profile);
+    if (bad.length) return setGenStatus("err", `${bad[0].label}: ${bad[0].message}`);
+    // The signature is passed only when this packet was confirmed for it.
+    const emp = opts.stampSignature ? state.employer : { ...state.employer, signature: "" };
     setGenStatus("busy", "Filling forms locally...");
     try {
       const stem = `${profile.last || "attendant"}-${profile.first || ""}`.replace(/[^\w-]+/g, "");
       if (packetCb.checked) {
         const bytes = await fetchTemplate("forms/CO-CDASS-Attendant-Packet-2026.pdf");
-        download(await fillPacket2026(bytes, profile, state.employer, opts), `${stem}-CDASS-packet-2026.pdf`);
+        download(await fillPacket2026(bytes, profile, emp, opts), `${stem}-CDASS-packet-2026.pdf`);
       }
       if (w4Cb.checked) {
         const bytes = await fetchTemplate("forms/w4.pdf");
-        download(await fillW4(bytes, profile, state.employer, opts), `${stem}-W4.pdf`);
+        download(await fillW4(bytes, profile, emp, opts), `${stem}-W4.pdf`);
       }
       if (i9Cb.checked) {
         const bytes = await fetchTemplate("forms/i9.pdf");
-        download(await fillI9Standalone(bytes, profile, state.employer, opts), `${stem}-I9.pdf`);
+        download(await fillI9Standalone(bytes, profile, emp, opts), `${stem}-I9.pdf`);
       }
-      setGenStatus("ok", "Done. Files are in your Downloads folder. Review every page, then sign and date by hand where required.");
+      const stamped = state.employer.signature
+        ? opts.stampSignature
+          ? ` The employer signature on file for ${state.employer.signatureFor || "an unrecorded name"} was stamped on the employer lines.`
+          : " No signature was stamped; every signature line is blank."
+        : "";
+      setGenStatus(
+        "ok",
+        `Done. Files are in your Downloads folder. Review every page, then sign and date by hand where required.${stamped}`
+      );
       offerScrub();
     } catch (e) {
       console.error(e);
@@ -714,13 +832,15 @@ function renderMain() {
       h("label", { class: "check" }, w4Cb, "IRS W-4 withholding (2026 revision, as distributed by PPL)"),
       h("label", { class: "check" }, i9Cb, "Standalone USCIS I-9 (the packet already includes one; only if PPL asks for it separately)"),
       h("label", { class: "check" }, newServiceCb, "Rate form: this is a new service (uncheck for an hourly-rate change)"),
+      h("h3", {}, "Employer signature"),
+      renderStampConfirm(),
       h("div", { class: "btnrow" }, h("button", { class: "btn primary", onclick: generate }, "Generate & download")),
       genStatus,
       afterGen,
       h(
         "p",
         { class: "note" },
-        "Your employer signature is placed on the employer lines when you upload one in Your details; the attendant and other parties sign by hand. The output is an exact, editable copy of the packet, so you can adjust any field in your PDF reader before printing. The packet's rehire page (Supplement B) shares a field with I-9 List A in the original PDF, so if a passport was used, ignore the mirrored title on that page."
+        "A saved signature is stamped on the employer lines only when you tick the box above, and the tick clears every time the app restarts, so it is never applied to a new person unnoticed. The attendant and all other parties sign by hand. The output is an exact, editable copy of the packet, so you can adjust any field in your PDF reader before printing. The packet's rehire page (Supplement B) shares a field with I-9 List A in the original PDF, so if a passport was used, ignore the mirrored title on that page."
       )
     ),
     h(
@@ -735,6 +855,9 @@ function renderMain() {
             store.clearProfile();
             state.profile = blankProfile();
             store.saveProfile(state.profile);
+            // A new person re-confirms the signature: the tick belonged to the
+            // packet it was made for.
+            state.genOptions.stampSignature = false;
             state.purgedNote = null;
             render();
           },
