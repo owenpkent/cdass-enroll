@@ -8,19 +8,47 @@ export function parseSsnCard(ocrText) {
   // The cardholder name is printed below the number. Take the first line that
   // looks like a name: 2-4 capitalized words, allowing a single-letter middle
   // initial (with optional period), no digits, and not boilerplate.
-  const skip = /SOCIAL|SECURITY|ADMINISTRATION|UNITED|STATES|AMERICA|NUMBER|SIGNATURE|THIS|CARD|VALID|WORK|EMPLOYMENT|ONLY|PURPOSE/i;
+  // Whole words only: "CARD" must not skip CARDENAS, nor "WORK" WORKMAN.
+  const skip = /\b(?:SOCIAL|SECURITY|ADMINISTRATION|UNITED|STATES|AMERICA|NUMBER|SIGNATURE|THIS|CARD|VALID|WORK|EMPLOYMENT|ONLY|PURPOSE)\b/i;
   for (const line of ocrText.split(/\r?\n/)) {
     const t = line.trim().replace(/\s+/g, " ");
     if (!t || /\d/.test(t) || skip.test(t)) continue;
     if (/^[A-Z][A-Za-z'-]+(?:\s+(?:[A-Z]\.?|[A-Z][A-Za-z'-]+)){1,3}$/.test(t)) {
       const parts = t.replace(/\./g, "").split(/\s+/);
-      out.first = titleCase(parts[0]);
-      out.last = titleCase(parts[parts.length - 1]);
-      if (parts.length > 2) out.middle = titleCase(parts.slice(1, -1).join(" "));
+      Object.assign(out, splitCardName(parts));
       break;
     }
   }
   return Object.keys(out).length ? out : null;
+}
+
+const SUFFIXES = new Set(["JR", "SR", "II", "III", "IV"]);
+// Surname particles: a name containing one has a multi-word surname whose start
+// cannot be told from a middle name.
+const PARTICLES = new Set(["DE", "LA", "LE", "EL", "DEL", "DELA", "DI", "DA", "DOS", "DAS", "DU", "VAN", "VON", "DER", "DEN", "SAN", "ST", "BIN", "BEN", "AL", "MAC", "O"]);
+
+// The card prints FIRST [MIDDLE] LAST [SUFFIX]. Only unambiguous splits are
+// returned; anything else yields just the first name (or nothing), never a
+// guessed surname. The suffix is dropped: there is no profile field for it.
+function splitCardName(parts) {
+  const toks = [...parts];
+  if (toks.length > 1 && SUFFIXES.has(toks[toks.length - 1].toUpperCase())) {
+    toks.pop();
+    // "JOHN JR" alone: a suffix with no surname before it.
+    if (toks.length < 2) return {};
+  }
+  if (toks[0].length < 2 || PARTICLES.has(toks[0].toUpperCase())) return {};
+  const first = titleCase(toks[0]);
+  const last = toks[toks.length - 1];
+  const middle = toks.slice(1, -1);
+  const ambiguous =
+    last.length < 2 || // a trailing initial is not a surname
+    toks.slice(1).some((t) => PARTICLES.has(t.toUpperCase())) ||
+    middle.length > 1;
+  if (ambiguous) return { first };
+  const out = { first, last: titleCase(last) };
+  if (middle.length) out.middle = titleCase(middle[0]);
+  return out;
 }
 
 // Strong OCR look-alikes for digits, applied only on the tolerant second pass.

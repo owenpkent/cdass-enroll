@@ -4,7 +4,11 @@
 // The only download is the Tesseract English model (one time, ~4 MB, from
 // the official tesseract-ocr GitHub repo). No user data is ever involved.
 
-import { mkdirSync, copyFileSync, existsSync, readdirSync, createWriteStream } from "node:fs";
+import {
+  mkdirSync, copyFileSync, existsSync, readdirSync, createWriteStream,
+  readFileSync, renameSync, rmSync,
+} from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { get } from "node:https";
@@ -36,18 +40,37 @@ for (const f of readdirSync(coreDir)) {
   }
 }
 
-// English OCR model (downloaded once; runtime then needs no network at all)
+// English OCR model (downloaded once; runtime then needs no network at all).
+// Pinned to a specific tessdata_fast commit (the 4.1.0 tag) and verified by
+// SHA-256, so a truncated or tampered download is never kept.
+const TESSDATA_URL =
+  "https://github.com/tesseract-ocr/tessdata_fast/raw/65727574dfcd264acbb0c3e07860e4e9e9b22185/eng.traineddata";
+const TESSDATA_SHA256 = "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2";
+
 const lang = join(root, "public", "tessdata", "eng.traineddata");
-if (existsSync(lang)) {
-  console.log("tessdata already present, skipping download");
+const tmp = lang + ".part";
+
+function sha256File(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+if (existsSync(lang) && sha256File(lang) === TESSDATA_SHA256) {
+  console.log("tessdata already present and verified, skipping download");
 } else {
+  if (existsSync(lang)) {
+    console.warn("existing eng.traineddata has the wrong hash (truncated?), replacing it");
+  }
   mkdirSync(dirname(lang), { recursive: true });
-  const url =
-    "https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata";
-  console.log("downloading", url);
-  download(url, lang, 5)
-    .then(() => console.log("saved", lang.slice(root.length + 1)))
+  console.log("downloading", TESSDATA_URL);
+  download(TESSDATA_URL, tmp, 5)
+    .then(() => {
+      const got = sha256File(tmp);
+      if (got !== TESSDATA_SHA256) throw new Error("SHA-256 mismatch (got " + got + ")");
+      renameSync(tmp, lang);
+      console.log("saved", lang.slice(root.length + 1));
+    })
     .catch((e) => {
+      rmSync(tmp, { force: true });
       console.error("Could not download eng.traineddata:", e.message);
       console.error("OCR will not work until you place it at public/tessdata/eng.traineddata");
       // Don't fail the install; the app works without OCR.
@@ -61,10 +84,15 @@ function download(url, dest, redirectsLeft) {
         r.resume();
         return res(download(r.headers.location, dest, redirectsLeft - 1));
       }
-      if (r.statusCode !== 200) return rej(new Error("HTTP " + r.statusCode));
+      if (r.statusCode !== 200) {
+        r.resume();
+        return rej(new Error("HTTP " + r.statusCode));
+      }
       const out = createWriteStream(dest);
+      r.on("error", (e) => out.destroy(e));
+      r.on("aborted", () => out.destroy(new Error("download interrupted")));
       r.pipe(out);
-      out.on("finish", () => out.close(res));
+      out.on("finish", () => out.close(() => res()));
       out.on("error", rej);
     }).on("error", rej);
   });

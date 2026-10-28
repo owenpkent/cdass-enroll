@@ -162,8 +162,8 @@ export const PROFILE_SECTIONS = [
     id: "rates",
     title: "Pay rates (CDASS, $/hour)",
     fields: [
-      { key: "rateStandardCdass", label: "Standard rate (per attendant)", type: "money", placeholder: "e.g. 18" },
-      { key: "rateEmergencyCdass", label: "Emergency rate", type: "money", default: "45", placeholder: "45" },
+      { key: "rateStandardCdass", label: "Standard rate (per attendant)", type: "money", rate: true, placeholder: "e.g. 18" },
+      { key: "rateEmergencyCdass", label: "Emergency rate", type: "money", rate: true, default: "45", placeholder: "45" },
     ],
   },
   {
@@ -195,6 +195,11 @@ export const PROFILE_SECTIONS = [
       { key: "dlNumber", label: "Driver's license number", type: "text", sensitive: true },
       { key: "dlState", label: "License state", type: "text", width: "s" },
       { key: "dlExpiration", label: "License expiration", type: "date", sensitive: true },
+      {
+        key: "ssnCardPresented",
+        label: "I-9 List C: Social Security card was examined (listed with the license)",
+        type: "checkbox",
+      },
       { key: "passportNumber", label: "U.S. passport number", type: "text", sensitive: true },
       { key: "passportExpiration", label: "Passport expiration", type: "date", sensitive: true },
     ],
@@ -291,25 +296,35 @@ const RATE_MAX = 200;
 /**
  * Accept a money value written the way people type it ("$33.51", " 1,234.00 ")
  * by dropping the formatting. Only punctuation goes; the amount is untouched.
+ * Commas are dropped only when they are proper thousands separators
+ * (1,234 / 12,345,678.50). "18,5" is a decimal comma, not 185, so it stays as
+ * typed and moneyError rejects it.
  */
 export function normalizeMoney(raw) {
-  return String(raw ?? "")
+  const v = String(raw ?? "")
     .trim()
     .replace(/^\$\s*/, "")
-    .replace(/,/g, "")
     .trim();
+  return /^\d{1,3}(,\d{3})+(\.\d+)?$/.test(v) ? v.replace(/,/g, "") : v;
 }
 
 /**
  * Describe what is wrong with a money value, or null when it is fine. Empty is
- * fine: leaving a rate box blank and writing it in by hand is a valid choice.
+ * fine: leaving a box blank and writing it in by hand is a valid choice.
+ *
+ * `field` is the schema entry. Only fields marked `rate: true` (hourly pay
+ * rates) get the plausible-range check; W-4 amounts like a $2000 child credit
+ * or $0 extra withholding just need a valid dollars-and-cents format. With no
+ * field given the value is treated as a rate.
  *
  * This deliberately does not round. 33.517 is a typo, and quietly turning it
  * into 33.52 changes what someone gets paid, on a form they sign. The only
  * person who gets to resolve that is the one who typed it, so the value stays
  * exactly as entered and the packet does not generate until they fix it.
  */
-export function moneyError(raw) {
+export function moneyError(raw, field) {
+  const isRate = !field || field.rate === true;
+  const noun = isRate ? "Rates are" : "Amounts are";
   const v = normalizeMoney(raw);
   if (!v) return null;
   if (!/^\d+(\.\d{1,2})?$/.test(v)) {
@@ -319,11 +334,14 @@ export function moneyError(raw) {
       const down = v.slice(0, v.indexOf(".") + 3);
       const near = Number(v).toFixed(2);
       return down === near
-        ? `Rates are dollars and cents. Did you mean ${down}?`
-        : `Rates are dollars and cents. Did you mean ${down} or ${near}?`;
+        ? `${noun} dollars and cents. Did you mean ${down}?`
+        : `${noun} dollars and cents. Did you mean ${down} or ${near}?`;
     }
-    return "Enter a dollars-and-cents amount, like 18.50.";
+    return isRate
+      ? "Enter a dollars-and-cents amount, like 18.50."
+      : "Enter a dollars-and-cents amount, like 1000 or 52.50.";
   }
+  if (!isRate) return null;
   const n = Number(v);
   if (n < RATE_MIN) return `$${v} an hour looks too low. Check the rate.`;
   if (n > RATE_MAX) return `$${v} an hour looks too high. Check the rate.`;
@@ -336,7 +354,7 @@ export function moneyErrors(profile) {
   for (const s of PROFILE_SECTIONS)
     for (const f of s.fields) {
       if (f.type !== "money") continue;
-      const msg = moneyError(profile[f.key]);
+      const msg = moneyError(profile[f.key], f);
       if (msg) out.push({ key: f.key, label: f.label, message: msg });
     }
   return out;

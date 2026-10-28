@@ -56,21 +56,48 @@ function isEnvelope(v) {
 // Encrypt `value` and write it under `storageKey`. Everything sensitive lives
 // inside the ciphertext; the only cleartext is the { _enc, iv, ct } envelope
 // shell. Serialized per key so overlapping saves apply last-write-wins in call
-// order.
+// order. Resolves true once the ciphertext landed, false if it failed or was
+// dropped; never rejects. A write queued under a key that is no longer the
+// current one (lock, rekey, encryption turned off) is dropped rather than
+// landing an envelope the vault can no longer open.
 function queueWrite(storageKey, value) {
+  const key = vaultKey;
   const prev = writeChains.get(storageKey) || Promise.resolve();
   const next = prev
     .then(async () => {
-      const env = await vault.encrypt(value, vaultKey);
-      localStorage.setItem(storageKey, JSON.stringify({ _enc: 1, ...env }));
+      if (vaultKey !== key) return false;
+      const env = await vault.encrypt(value, key);
+      if (vaultKey !== key) return false;
+      localStorage.setItem(storageKey, envelopeJson(env));
+      return true;
     })
     .catch((e) => {
-      // Missing/failed writes degrade to a warning, never an exception.
+      // Failed writes degrade to a warning plus a false result, never an exception.
       console.warn("encrypted write failed for", storageKey, e);
+      return false;
     });
   writeChains.set(storageKey, next);
   return next;
 }
+
+// Snapshot raw values so a multi-key write can be rolled back if any setItem
+// throws (quota, storage disabled).
+function snapshot(keys) {
+  return keys.map((k) => [k, localStorage.getItem(k)]);
+}
+
+function restore(snap) {
+  for (const [k, v] of snap) {
+    try {
+      if (v == null) localStorage.removeItem(k);
+      else localStorage.setItem(k, v);
+    } catch (e) {
+      console.warn("rollback failed for", k, e);
+    }
+  }
+}
+
+const envelopeJson = (env) => JSON.stringify({ _enc: 1, ...env });
 
 async function readEncrypted(storageKey) {
   let raw;
@@ -121,18 +148,28 @@ function mostRecentLegacy() {
   return null;
 }
 
+/** Resolves true once saved, false if it could not be (locked, quota). Never rejects. */
 export function saveProfile(profile) {
   profile.touchedAt = Date.now();
   if (isEncrypted()) {
     if (!isUnlocked()) {
       console.warn("store is locked; profile save ignored");
-      return;
+      return Promise.resolve(false);
     }
     cache.profile = profile;
-    queueWrite(PROFILE_KEY, profile);
-    return;
+    return queueWrite(PROFILE_KEY, profile);
   }
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  return Promise.resolve(setPlain(PROFILE_KEY, profile));
+}
+
+function setPlain(storageKey, value) {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(value));
+    return true;
+  } catch (e) {
+    console.warn("save failed for", storageKey, e);
+    return false;
+  }
 }
 
 export function clearProfile() {
@@ -168,18 +205,21 @@ export function loadEmployer() {
   }
 }
 
+/**
+ * Resolves true once saved, false if it could not be (locked, quota). Never
+ * rejects. When encrypted it settles after the ciphertext has actually landed,
+ * so a caller reporting the save (the Save button) can wait on it.
+ */
 export function saveEmployer(employer) {
   if (isEncrypted()) {
     if (!isUnlocked()) {
       console.warn("store is locked; employer save ignored");
-      return;
+      return Promise.resolve(false);
     }
     cache.employer = employer;
-    // Returned so a caller that wants to report the save (the Save button) can
-    // wait for the ciphertext to actually land, not just for it to be queued.
     return queueWrite(EMPLOYER_KEY, employer);
   }
-  localStorage.setItem(EMPLOYER_KEY, JSON.stringify(employer));
+  return Promise.resolve(setPlain(EMPLOYER_KEY, employer));
 }
 
 export function wipeAll() {
@@ -232,57 +272,95 @@ export function lock() {
 /**
  * Turn encryption on: derive a key from a new passphrase, then rewrite the
  * current (plaintext) profile and employer as encrypted envelopes. The caller
- * is left unlocked.
+ * is left unlocked. Every envelope is built in memory first, then the vault
+ * meta and both envelopes are written in one synchronous block that rolls back
+ * together if any write throws, so a failure leaves plaintext intact and
+ * encryption off (the error is rethrown).
  */
 export async function enableEncryption(passphrase) {
   if (isEncrypted()) throw new Error("Already encrypted");
+  await flushWrites();
   const currentProfile = loadProfile(); // plaintext read
   const currentEmployer = loadEmployer();
   const salt = vault.newSalt();
   const key = await vault.deriveKey(passphrase, salt, vault.KDF);
   const check = await vault.encrypt(CHECK_MARKER, key);
+  const profileEnv = await vault.encrypt(currentProfile, key);
+  const employerEnv = await vault.encrypt(currentEmployer, key);
+  const meta = JSON.stringify({ v: 1, kdf: { ...vault.KDF, salt: vault.bytesToB64(salt) }, check });
+  const snap = snapshot([VAULT_KEY, PROFILE_KEY, EMPLOYER_KEY]);
+  // No await from here to the end of the block, so a tab close cannot split it.
+  try {
+    localStorage.setItem(VAULT_KEY, meta);
+    localStorage.setItem(PROFILE_KEY, envelopeJson(profileEnv));
+    localStorage.setItem(EMPLOYER_KEY, envelopeJson(employerEnv));
+  } catch (e) {
+    restore(snap);
+    throw e;
+  }
   vaultKey = key;
   cache.profile = currentProfile;
   cache.employer = currentEmployer;
-  localStorage.setItem(
-    VAULT_KEY,
-    JSON.stringify({ v: 1, kdf: { ...vault.KDF, salt: vault.bytesToB64(salt) }, check })
-  );
-  await queueWrite(PROFILE_KEY, currentProfile);
-  await queueWrite(EMPLOYER_KEY, currentEmployer);
 }
 
 /**
  * Turn encryption off: write the current (decrypted) data back as plaintext and
- * remove the vault. Requires being unlocked first.
+ * remove the vault. Requires being unlocked first. Pending encrypted writes are
+ * flushed first; the plaintext and the vault removal then happen in one
+ * synchronous block that rolls back if a write throws (the error is rethrown).
  */
 export async function disableEncryption() {
   if (!isUnlocked()) throw new Error("Unlock before turning off encryption");
+  await flushWrites();
+  if (!isUnlocked()) throw new Error("Unlock before turning off encryption");
   const p = { ...blankProfile(), ...(cache.profile || {}) };
   const e = { ...blankEmployer(), ...(cache.employer || {}) };
-  localStorage.removeItem(VAULT_KEY);
+  const snap = snapshot([VAULT_KEY, PROFILE_KEY, EMPLOYER_KEY]);
+  try {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    localStorage.setItem(EMPLOYER_KEY, JSON.stringify(e));
+    localStorage.removeItem(VAULT_KEY);
+  } catch (err) {
+    restore(snap);
+    throw err;
+  }
   lock();
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
-  localStorage.setItem(EMPLOYER_KEY, JSON.stringify(e));
 }
 
 /**
  * Change the passphrase: verify the old one, then re-key with a fresh salt and
  * rewrite everything under the new key. Returns false if the old passphrase is
- * wrong.
+ * wrong. The new vault meta and both re-encrypted envelopes are written in one
+ * synchronous block that rolls back together if any write throws, so the data
+ * is never left under a key the stored check marker does not match (the error
+ * is rethrown and the old passphrase keeps working).
  */
 export async function changePassphrase(oldPass, newPass) {
+  await flushWrites();
   if (!(await unlock(oldPass))) return false;
+  const prevKey = vaultKey;
+  const prevCache = { ...cache };
+  const profile = cache.profile ?? blankProfile();
+  const employer = cache.employer ?? blankEmployer();
   const salt = vault.newSalt();
   const key = await vault.deriveKey(newPass, salt, vault.KDF);
   const check = await vault.encrypt(CHECK_MARKER, key);
+  const profileEnv = await vault.encrypt(profile, key);
+  const employerEnv = await vault.encrypt(employer, key);
+  const meta = JSON.stringify({ v: 1, kdf: { ...vault.KDF, salt: vault.bytesToB64(salt) }, check });
+  const snap = snapshot([VAULT_KEY, PROFILE_KEY, EMPLOYER_KEY]);
+  try {
+    localStorage.setItem(VAULT_KEY, meta);
+    localStorage.setItem(PROFILE_KEY, envelopeJson(profileEnv));
+    localStorage.setItem(EMPLOYER_KEY, envelopeJson(employerEnv));
+  } catch (e) {
+    restore(snap);
+    vaultKey = prevKey;
+    cache.profile = prevCache.profile;
+    cache.employer = prevCache.employer;
+    throw e;
+  }
   vaultKey = key;
-  localStorage.setItem(
-    VAULT_KEY,
-    JSON.stringify({ v: 1, kdf: { ...vault.KDF, salt: vault.bytesToB64(salt) }, check })
-  );
-  await queueWrite(PROFILE_KEY, cache.profile ?? blankProfile());
-  await queueWrite(EMPLOYER_KEY, cache.employer ?? blankEmployer());
   return true;
 }
 
@@ -320,15 +398,34 @@ export async function applySeedIfEmpty() {
 /**
  * Import a backup. Accepts the current single-profile shape ({profile}) and
  * the legacy multi-profile shape ({profiles:[...]}, taking the most recent).
+ * Resolves to the number of profiles imported (0 or 1). Throws an Error with a
+ * short human message on a malformed file, while locked, or if a save fails.
  */
-export function importAll(json) {
-  const data = JSON.parse(json);
-  let profile = null;
-  if (data.profile && typeof data.profile === "object") profile = data.profile;
-  else if (Array.isArray(data.profiles) && data.profiles.length)
-    profile = [...data.profiles].sort((a, b) => (b.touchedAt ?? 0) - (a.touchedAt ?? 0))[0];
-  if (!profile && !data.employer) throw new Error("Not a valid export file");
-  if (profile) saveProfile(profile);
-  if (data.employer) saveEmployer(data.employer);
+export async function importAll(json) {
+  let data;
+  try {
+    data = JSON.parse(json);
+  } catch {
+    throw new Error("Not a valid export file");
+  }
+  if (!isPlainObject(data)) throw new Error("Not a valid export file");
+  if (data.profile != null && !isPlainObject(data.profile))
+    throw new Error("Not a valid export file: profile must be an object");
+  if (data.employer != null && !isPlainObject(data.employer))
+    throw new Error("Not a valid export file: employer must be an object");
+  let profile = data.profile ?? null;
+  if (!profile && Array.isArray(data.profiles)) {
+    const people = data.profiles.filter(isPlainObject);
+    if (people.length) profile = people.sort((a, b) => (b.touchedAt ?? 0) - (a.touchedAt ?? 0))[0];
+  }
+  const employer = data.employer ?? null;
+  if (!profile && !employer) throw new Error("Not a valid export file");
+  if (isLocked()) throw new Error("Unlock before importing");
+  if (profile && !(await saveProfile(profile)))
+    throw new Error("Could not save the imported profile (storage full?)");
+  if (employer && !(await saveEmployer(employer)))
+    throw new Error("Could not save the imported details (storage full?)");
   return profile ? 1 : 0;
 }
+
+const isPlainObject = (o) => o != null && typeof o === "object" && !Array.isArray(o);

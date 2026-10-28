@@ -164,6 +164,20 @@ focus and hold still", not "get closer".
 
 ---
 
+## Line terminators and truncation flags
+
+Elements end in LF; a subfile ends in CR, and the next subfile (`ZC...`, or a
+second `DL`/`ID`) follows it. `parseAamva` therefore splits on any of CR, LF or
+CRLF. Splitting on LF alone left `DAJCOZCZCAXX` as the state and made a
+trailing `DBB` fail its date test. A line that starts `DL`/`ID` plus a valid
+element ID is a later subfile's first element.
+
+`DDE`, `DDF` and `DDG` say whether the family, first and middle name were
+truncated to fit the barcode (`T` truncated, `N` not, `U` unknown). On `T` the
+result carries a `warnings` array (a non-enumerable property, so copying the
+fields into the profile does not persist it). The UI should show it next to the
+scan status.
+
 ## Fixtures
 
 Both are the fictional Jane Doe, matching the sample profile the rest of the

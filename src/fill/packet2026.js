@@ -16,7 +16,7 @@
 //   (consistent, since a live-in attendant shares the Member's address).
 
 import { PDFDocument } from "pdf-lib";
-import { setText, check, selectButton, fmtDate, fmtSsn, isoDate, ssnDigits, overlaySignature } from "./util.js";
+import { setText, check, selectButton, splitWidgetToOwnField, fmtDate, fmtSsn, isoDate, ssnDigits, overlaySignature } from "./util.js";
 import { fillI9 } from "./i9.js";
 
 // The packet's text fields that map to exactly one profile ("p") or employer
@@ -76,6 +76,10 @@ const EMPLOYER_SIGNATURE = [
 
 export async function fillPacket2026(templateBytes, p, emp, opts) {
   const doc = await PDFDocument.load(templateBytes);
+  // Page 8's "State" widget is one field with the I-9 and EVV State widgets, so
+  // writing it would overwrite the I-9 state. Give it its own field first (this
+  // must happen before getForm() so the form sees the new field).
+  splitWidgetToOwnField(doc, 7, "State", "Payment mailing State");
   const form = doc.getForm();
   const sig = fmtDate(opts.signatureDate);
 
@@ -146,6 +150,7 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
     // pdf-lib wants the whole thing.
     setText(form, "Address 2 (Apt., Ste., or other)", mail.street2);
     setText(form, "City", mail.city);
+    setText(form, "Payment mailing State", mail.state);
     setText(form, "Zip Code", mail.zip);
     setText(form, "County", mail.county);
   }
@@ -193,8 +198,15 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
     setText(form, "First Name_2", p.first);
     setText(form, "Last Name_2", p.last);
     setText(form, "Last 5 SSN", (p.ssn ?? "").replace(/\D/g, "").slice(-5));
-    if (["spouse", "parent", "child"].includes(p.relationToEmployer))
-      setText(form, "If yes describe their relationship parent spouse sibling etc", p.relationToEmployer);
+    // "Is the caregiver legally responsible for the member?" is about the
+    // caregiver's relationship to the Member (p.relationship), not to the
+    // employer. A spouse is legally responsible, so Yes + "Spouse". A parent is
+    // only responsible for a minor or a ward, which the profile cannot tell, so
+    // that stays for the human to answer; neither box nor text is touched.
+    if (p.relationship === "spouse") {
+      selectButton(form, "Is the caregiver legally responsible for the member", "Yes");
+      setText(form, "If yes describe their relationship parent spouse sibling etc", "Spouse");
+    }
     setText(form, "Billing Provider or FMS Vendor name", "Public Partnerships LLC");
     check(form, "Livein Caregiver Enter the shared residential address then skip to section 7", true);
     setText(form, "Street Address", p.street);

@@ -7,8 +7,18 @@
 
 import { PDFDocument, PDFName, PDFBool } from "pdf-lib";
 import { bySuffix, fmtDate, fmtSsn } from "./util.js";
+import { normalizeMoney } from "../schema.js";
 
-const money = (v) => (v === "" || v == null ? "" : String(v));
+// Punctuation only ("$1,000" -> "1000"); the amount itself is never changed.
+const money = (v) => normalizeMoney(v);
+
+// Whole cents for a valid dollars-and-cents string, else null. Integer math so
+// summing two amounts cannot produce float artifacts, and nothing is rounded.
+function toCents(v) {
+  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(money(v));
+  return m ? Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0") || 0) : null;
+}
+const fromCents = (c) => (c % 100 === 0 ? String(c / 100) : `${Math.floor(c / 100)}.${String(c % 100).padStart(2, "0")}`);
 
 export async function fillW4(templateBytes, p, emp, opts) {
   const doc = await PDFDocument.load(templateBytes);
@@ -51,8 +61,12 @@ export async function fillW4(templateBytes, p, emp, opts) {
   const is2024Layout = !!bySuffix(form, ".f1_08[0]");
   const n = (base) => `.f1_${String(base + (is2024Layout ? 0 : 1)).padStart(2, "0")}[0]`;
 
-  const total = Number(p.childrenCredit || 0) + Number(p.otherDependentsCredit || 0);
-  if (total > 0) text(n(8), String(total)); // Step 3 total
+  // Step 3 total, only when every entered component is a valid amount.
+  const parts = [p.childrenCredit, p.otherDependentsCredit].filter((v) => money(v) !== "").map(toCents);
+  if (parts.length && parts.every((c) => c != null)) {
+    const total = parts.reduce((a, b) => a + b, 0);
+    if (total > 0) text(n(8), fromCents(total));
+  }
   text(n(9), money(p.otherIncome)); // 4(a)
   text(n(10), money(p.deductions)); // 4(b)
   text(n(11), money(p.extraWithholding)); // 4(c)

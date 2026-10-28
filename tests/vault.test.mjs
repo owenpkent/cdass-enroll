@@ -9,9 +9,16 @@ import assert from "node:assert/strict";
 
 // ---- localStorage shim (must exist before importing the store) ----
 const mem = new Map();
+let failAfter = null; // N = let N more writes succeed, then the next one throws (quota)
 globalThis.localStorage = {
   getItem: (k) => (mem.has(k) ? mem.get(k) : null),
-  setItem: (k, v) => mem.set(k, String(v)),
+  setItem: (k, v) => {
+    if (failAfter !== null && failAfter-- <= 0) {
+      failAfter = null; // one failure; the rollback rewrites old, same-size values
+      throw new Error("QuotaExceededError");
+    }
+    mem.set(k, String(v));
+  },
   removeItem: (k) => mem.delete(k),
   clear: () => mem.clear(),
 };
@@ -93,5 +100,49 @@ assert.equal(vault.estimateStrength("aaaaaaaaaaaaaaaa").ok, false, "repetition i
 assert.equal(vault.estimateStrength(PASS).ok, true);
 assert.equal(vault.estimateStrength(NEWPASS).ok, true);
 ok("strength floor behaves");
+
+// 9. A write that throws mid-enable rolls back: plaintext stays, encryption off.
+failAfter = 1; // the vault meta lands, the first envelope throws
+await assert.rejects(store.enableEncryption(PASS), /Quota/);
+failAfter = null;
+assert.equal(store.isEncrypted(), false, "failed enable leaves encryption off");
+assert.ok(localStorage.getItem("cdass.profile.v1").includes(SSN), "plaintext still readable");
+assert.equal(store.loadProfile().ssn, SSN);
+ok("failed enableEncryption leaves plaintext intact");
+
+// 10. A write that throws mid-changePassphrase leaves the old passphrase working.
+await store.enableEncryption(PASS);
+store.lock();
+failAfter = 2; // meta and profile land, the employer envelope throws
+await assert.rejects(store.changePassphrase(PASS, NEWPASS), /Quota/);
+failAfter = null;
+store.lock();
+assert.equal(await store.unlock(NEWPASS), false, "new passphrase must not have taken effect");
+assert.equal(await store.unlock(PASS), true, "old passphrase still works");
+assert.equal(store.loadProfile().ssn, SSN, "data intact under the old key");
+assert.equal(store.loadEmployer().memberName, "Jane Doe");
+ok("failed changePassphrase keeps the old passphrase and data");
+
+// 11. A write queued before disableEncryption cannot clobber the plaintext.
+store.saveProfile({ ...store.loadProfile(), firstName: "Queued" }); // not awaited
+await store.disableEncryption();
+await store.flushWrites();
+assert.equal(store.isEncrypted(), false);
+assert.equal(JSON.parse(localStorage.getItem("cdass.profile.v1"))._enc, undefined, "plaintext, not an envelope");
+assert.equal(store.loadProfile().firstName, "Queued");
+ok("queued write does not clobber plaintext on disable");
+
+// 12. Save results and import validation.
+assert.equal(await store.saveEmployer({ memberName: "Jane Doe" }), true);
+failAfter = 0;
+assert.equal(await store.saveEmployer({ memberName: "X" }), false, "quota failure reports false");
+failAfter = null;
+await assert.rejects(store.importAll(JSON.stringify({ employer: "oops" })), /employer/);
+await assert.rejects(store.importAll(JSON.stringify({ profile: [1, 2] })), /profile/);
+await assert.rejects(store.importAll("not json"), /valid/);
+assert.equal(store.loadEmployer().memberName, "Jane Doe", "rejected import changed nothing");
+assert.equal(await store.importAll(JSON.stringify({ employer: { memberName: "Imp" } })), 0);
+assert.equal(store.loadEmployer().memberName, "Imp");
+ok("save results and import validation");
 
 console.log(`\nvault.test: ${pass} checks passed`);

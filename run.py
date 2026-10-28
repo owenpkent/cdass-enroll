@@ -14,6 +14,7 @@ The app runs entirely on this computer at http://127.0.0.1:5180.
 import io
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -31,7 +32,8 @@ if sys.stdout.encoding and sys.stdout.encoding.lower().replace("-", "") != "utf8
     )
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-URL = "http://127.0.0.1:5180"
+PORT = 5180
+URL = f"http://127.0.0.1:{PORT}"
 
 
 def tool(name: str) -> str:
@@ -55,6 +57,37 @@ def ensure_installed() -> None:
     if not os.path.isfile(os.path.join(ROOT, "public", "tessdata", "eng.traineddata")):
         print("OCR model missing, vendoring assets...")
         run(["npm", "run", "setup"])
+        if not os.path.isfile(os.path.join(ROOT, "public", "tessdata", "eng.traineddata")):
+            print("  warning: OCR model still missing; passport/SSN-card OCR will not work")
+
+
+def port_in_use() -> bool:
+    """True if something is already listening on the pinned port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("127.0.0.1", PORT)) == 0
+
+
+def is_our_dev_server() -> bool:
+    """Vite dev serves /@vite/client; another app on the port will not."""
+    try:
+        with urllib.request.urlopen(URL + "/@vite/client", timeout=2) as r:
+            body = r.read(4096).decode("utf-8", "replace")
+        with urllib.request.urlopen(URL + "/", timeout=2) as r:
+            page = r.read(8192).decode("utf-8", "replace")
+        return "vite" in body.lower() and "CDASS" in page
+    except Exception:
+        return False
+
+
+def check_port_free() -> None:
+    if not port_in_use():
+        return
+    if is_our_dev_server():
+        print(f"CDASS Enroll is already running at {URL}; opening it.")
+        webbrowser.open(URL)
+        sys.exit(0)
+    sys.exit(f"Port {PORT} is already in use by another program. Stop it and try again.")
 
 
 def open_when_ready() -> None:
@@ -83,10 +116,13 @@ def main() -> None:
         sys.exit(run(["npm", "run", "build"]))
     if mode == "serve":
         ensure_installed()
-        run(["npm", "run", "build"])
-        sys.exit(run(["npx", "vite", "preview", "--host", "127.0.0.1", "--port", "5180"]))
+        check_port_free()
+        if run(["npm", "run", "build"]) != 0:
+            sys.exit("build failed; not serving")
+        sys.exit(run(["npx", "vite", "preview", "--host", "127.0.0.1", "--port", str(PORT), "--strictPort"]))
     if mode == "dev":
         ensure_installed()
+        check_port_free()
         print(f"Starting CDASS Enroll at {URL} (Ctrl+C to stop)")
         threading.Thread(target=open_when_ready, daemon=True).start()
         sys.exit(run(["npm", "run", "dev"]))

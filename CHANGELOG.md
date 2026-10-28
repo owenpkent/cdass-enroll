@@ -165,6 +165,47 @@ below as 0.1.0, and work since then sits under Unreleased.
 - **Line endings** pinned to LF via `.gitattributes`.
 
 ### Fixed
+- **Changing the passphrase or turning encryption on could lose or expose data.**
+  The new vault meta was written before the data was re-encrypted, and failed
+  encrypted writes were swallowed. A failure in between left the data under a
+  key the check marker no longer matched (unlock succeeded, everything read
+  blank) or left plaintext on disk under a vault that said it was encrypted.
+  Enable, change and disable now build every envelope first and write the meta
+  and both records in one synchronous block that rolls back together. A queued
+  write made under an old key is dropped instead of landing after a re-key or
+  after encryption is turned off. Saves resolve `true`/`false`, and the Save
+  details button, the encryption dialogs and backup import report a failure
+  instead of success. Export warns that the backup is unencrypted.
+- **W-4 amounts were checked as hourly rates.** The $1 to $200 bound applied to
+  every money field, so a $2,000 child credit or $0 extra withholding blocked
+  Generate. Only the two rate fields (`rate: true`) are bounded now. A decimal
+  comma ("18,5") is no longer read as 185, and the W-4 Step 3 total is summed in
+  cents from normalized amounts.
+- **The signature tick outlived a signature swap, and packet options outlived the
+  person.** Uploading or clearing the signature, importing a backup or a filled
+  packet, Start over and Wipe all now untick it; the last four also reset first
+  day, new service and signature date. A scan still running when the person
+  changes is discarded rather than written into the new person, Generate cannot
+  run twice at once and fills from a snapshot, and checkboxes follow an import.
+- **Packet fill fixes.** The paper-check mailing State was never written; it was
+  one field with the I-9 and EVV State, so page 8's widget is now split into
+  its own field. The I-9 ZIP gets the 5-digit ZIP (a ZIP+4 overflowed MaxLen and
+  was dropped), A-Number and I-94 numbers are stripped to fit. List C (Social
+  Security card) is filled only when the new "SSN card presented" box is ticked,
+  the license issuer no longer falls back to the home state, and the EVV
+  relationship follows the relationship to the Member, not to the employer.
+- **ID readers could return confident wrong values.** MRZ digit repair no longer
+  touches the passport number (`L` read as `1` still passed the check digit).
+  AAMVA elements split on any line terminator, and DDE/DDF/DDG truncation flags
+  surface as a warning. The license front rejects card boilerplate as a name,
+  rejects a name line containing any stopword, requires a real street line, and
+  binds the date of birth to its label with calendar validation. The SSN card
+  reader matches skip words whole and no longer guesses a surname from the last
+  token. A failed OCR worker load is no longer cached until reload.
+- **Build and launcher.** `seed.local.json` is stripped from `dist/`, the built
+  CSP drops the dev-only `ws:` sources and adds `form-action 'none'` and
+  `base-uri 'none'`, the OCR model download is pinned and SHA-256 checked, and
+  `run.py` checks port 5180 before launching and stops on a failed build.
 - **A saved employer signature could be stamped on the next person's packet.**
   The signature is standing data under ⚙ Your details, so it survived everything
   that clears a person: the per-session wipe, the pagehide handler, and "Start
