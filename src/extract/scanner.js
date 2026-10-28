@@ -17,12 +17,19 @@ prepareZXingModule({
 
 let workerPromise = null;
 function getOcrWorker() {
-  workerPromise ??= createWorker("eng", 1, {
-    workerPath: new URL("vendor/tesseract/worker.min.js", document.baseURI).href,
-    corePath: new URL("vendor/tesseract/", document.baseURI).href,
-    langPath: new URL("tessdata/", document.baseURI).href,
-    gzip: false,
-  });
+  if (!workerPromise) {
+    const p = createWorker("eng", 1, {
+      workerPath: new URL("vendor/tesseract/worker.min.js", document.baseURI).href,
+      corePath: new URL("vendor/tesseract/", document.baseURI).href,
+      langPath: new URL("tessdata/", document.baseURI).href,
+      gzip: false,
+    });
+    workerPromise = p;
+    // A rejected load must not stay cached, or OCR is dead until page reload.
+    p.catch(() => {
+      if (workerPromise === p) workerPromise = null;
+    });
+  }
   return workerPromise;
 }
 

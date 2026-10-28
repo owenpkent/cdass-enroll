@@ -29,7 +29,7 @@ export function fillI9(form, p, emp, opts, sig) {
   setText(form, "Apt Number (if any)", p.street2);
   setText(form, "City or Town", p.city);
   setText(form, "State", p.state);
-  setText(form, "ZIP Code", p.zip);
+  setText(form, "ZIP Code", zip5(p.zip)); // field MaxLen is 6, so no ZIP+4
   setText(form, "Date of Birth mmddyyyy", fmtDate(p.dob));
   setText(form, "US Social Security Number", (p.ssn ?? "").replace(/\D/g, "")); // field maxLength is 9
   setText(form, "Employees E-mail Address", p.email);
@@ -44,8 +44,8 @@ export function fillI9(form, p, emp, opts, sig) {
     setText(form, "3 A lawful permanent resident Enter USCIS or ANumber", p.uscisNumber);
   if (p.citizenship === "alien") {
     setText(form, "Exp Date mmddyyyy", fmtDate(p.workAuthExpiration));
-    setText(form, "USCIS ANumber", p.uscisNumber);
-    setText(form, "Form I94 Admission Number", p.i94Number);
+    setText(form, "USCIS ANumber", aNumberDigits(p.uscisNumber)); // MaxLen 10: digits only
+    setText(form, "Form I94 Admission Number", (p.i94Number ?? "").replace(/[^A-Za-z0-9]/g, "")); // MaxLen 11
     setText(form, "Foreign Passport Number and Country of IssuanceRow1", p.foreignPassport);
   }
 
@@ -58,10 +58,11 @@ export function fillI9(form, p, emp, opts, sig) {
     setText(form, "Expiration Date if any", fmtDate(p.passportExpiration));
   } else if (p.dlNumber) {
     setText(form, "List B Document 1 Title", "Driver's License");
-    setText(form, "List B Issuing Authority 1", dmvName(p.dlState || p.state));
+    setText(form, "List B Issuing Authority 1", dmvName(p.dlState));
     setText(form, "List B Document Number 1", p.dlNumber);
     setText(form, "List B Expiration Date 1", fmtDate(p.dlExpiration));
-    if (p.ssn) {
+    // Listing the card asserts it was examined, so it needs the explicit choice.
+    if (p.ssn && p.ssnCardPresented) {
       setText(form, "List C Document Title 1", "Social Security Card");
       setText(form, "List C Issuing Authority 1", "Social Security Administration");
       setText(form, "List C Document Number 1", fmtSsn(p.ssn));
@@ -98,7 +99,17 @@ const STATE_NAMES = {
   WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
 };
 
+function zip5(zip) {
+  const m = /^\s*(\d{5})(?:\D*\d{4})?\s*$/.exec(zip ?? "");
+  return m ? m[1] : zip;
+}
+
+function aNumberDigits(a) {
+  return String(a ?? "").replace(/\D/g, "");
+}
+
 function dmvName(state) {
+  if (!(state ?? "").trim()) return "";
   const full = STATE_NAMES[(state ?? "").trim().toUpperCase()];
   return full ? `${full} DMV` : state;
 }

@@ -9,11 +9,11 @@ export function parseMrz(ocrText) {
 
   const l1 = lines.find((l) => /^P[A-Z<]/.test(l));
   const l2i = lines.indexOf(l1);
-  const l2 = lines.slice(l2i + 1).find((l) => /^[A-Z0-9<]{9}\d/.test(l));
+  const l2 = lines.slice(l2i + 1).find((l) => /^[A-Z0-9<]{9}[0-9OIL]/.test(l));
   if (!l1 || !l2) return null;
 
   const line1 = pad44(l1);
-  const line2 = pad44(fixDigits(l2));
+  const line2 = pad44(fixNumericSpans(l2));
 
   const names = line1.slice(5).split("<<");
   const last = names[0]?.replace(/</g, " ").trim() ?? "";
@@ -47,9 +47,27 @@ function pad44(l) {
   return (l + "<".repeat(44)).slice(0, 44);
 }
 
-// Common OCR confusions in the numeric-ish middle of line 2.
-function fixDigits(l) {
-  return l.replace(/O/g, "0").replace(/(?<=\d)[IL]|[IL](?=\d)/g, "1");
+// Common OCR confusions, repaired ONLY in the spans that are purely numeric in
+// TD3 line 2: the check digit after the document number (9), DOB and its check
+// digit (13-19), expiry and its check digit (21-27), and the final two check
+// digits (42-43). The document number, nationality and optional data are
+// alphanumeric, so "fixing" them is a guess: L12345678 -> 112345678 passes the
+// same check digit (L=21 and 1=1 are equal mod 10) and would mark a wrong
+// passport number verified. Left as read, a misread there fails its check and
+// is reported unverified instead.
+function fixNumericSpans(l) {
+  const chars = l.split("");
+  const fix = (from, to) => {
+    for (let i = from; i < to && i < chars.length; i++) {
+      if (chars[i] === "O") chars[i] = "0";
+      else if (chars[i] === "I" || chars[i] === "L") chars[i] = "1";
+    }
+  };
+  fix(9, 10);
+  fix(13, 20);
+  fix(21, 28);
+  fix(42, 44);
+  return chars.join("");
 }
 
 function mrzDate(yymmdd, isDob) {

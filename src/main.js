@@ -20,16 +20,29 @@ import { todayIso } from "./fill/util.js";
 
 // This is a one-at-a-time tool: a single person's profile, plus the standing
 // "your details" (member + employer of record) that get reused on every packet.
+// stampSignature lives here, not in the store, so it is false again on every
+// launch: reusing a saved signature is a decision made once per session. Every
+// option is per packet, so a new person gets all of them back at their defaults.
+const newGenOptions = () => ({ signatureDate: todayIso(), firstDay: "", newService: true, stampSignature: false });
+
 const state = {
   profile: blankProfile(),
   employer: blankEmployer(),
-  // stampSignature lives here, not in the store, so it is false again on every
-  // launch: reusing a saved signature is a decision made once per session.
-  genOptions: { signatureDate: todayIso(), firstDay: "", newService: true, stampSignature: false },
+  genOptions: newGenOptions(),
+  // Bumped whenever the person changes (start over, wipe, backup import). An
+  // async result captured under an older value belongs to someone else: drop it.
+  person: 0,
   showSettings: false,
   locked: false,
   unlockError: "",
 };
+
+/** Switch to a new person: fresh packet options, and in-flight scans go stale. */
+function newPerson() {
+  state.person++;
+  state.genOptions = newGenOptions();
+  state.purgedNote = null;
+}
 
 // Privacy default: the enrolled person is cleared on every launch, regardless
 // of lock state (the encrypted envelope is removed without the passphrase). The
@@ -116,6 +129,7 @@ function renderSections(sections, obj, onChange) {
           },
         });
         cb.checked = !!obj[f.key];
+        cb.dataset.key = f.key; // refreshInputs keeps the box in step with an import
         body.append(h("label", { class: "check" }, cb, f.label));
       } else if (f.type === "select") {
         const sel = h(
@@ -142,7 +156,7 @@ function renderSections(sections, obj, onChange) {
         const err = f.type === "money" ? h("div", { class: "fielderr" }) : null;
         const showError = () => {
           if (!err) return;
-          const msg = moneyError(obj[f.key]);
+          const msg = moneyError(obj[f.key], f);
           err.textContent = msg ?? "";
           err.style.display = msg ? "block" : "none";
         };
@@ -166,7 +180,7 @@ function renderSections(sections, obj, onChange) {
           // typist's, not the app's.
           inp.addEventListener("change", () => {
             const tidy = normalizeMoney(inp.value);
-            if (tidy !== inp.value && !moneyError(tidy)) {
+            if (tidy !== inp.value && !moneyError(tidy, f)) {
               inp.value = tidy;
               obj[f.key] = tidy;
               onChange(f.key);
@@ -191,6 +205,10 @@ function refreshInputs(container, obj, changedKeys) {
   for (const el of container.querySelectorAll("[data-key]")) {
     const k = el.dataset.key;
     if (!(k in obj)) continue;
+    if (el.type === "checkbox") {
+      el.checked = !!obj[k];
+      continue;
+    }
     if (el.value !== String(obj[k] ?? "")) {
       el.value = obj[k] ?? "";
       // A rate arriving from a scan or an imported packet gets the same tidy
@@ -202,6 +220,8 @@ function refreshInputs(container, obj, changedKeys) {
       setTimeout(() => el.classList.remove("flash"), 1600);
     }
   }
+  // Sections shown or disabled by a checkbox must follow the boxes just set.
+  container.dispatchEvent(new CustomEvent("resync"));
 }
 
 async function loadImageFile(file) {
@@ -274,6 +294,7 @@ function renderSignatureField(f, obj, onChange) {
         obj[f.key] = await cleanSignatureImage(file);
         obj.signatureFor = employerName(obj);
         obj.signatureUploadedAt = todayIso();
+        state.genOptions.stampSignature = false; // a new image must be re-confirmed
         onChange(f.key);
         show();
       } catch (err) {
@@ -285,6 +306,7 @@ function renderSignatureField(f, obj, onChange) {
     obj[f.key] = "";
     obj.signatureFor = "";
     obj.signatureUploadedAt = "";
+    state.genOptions.stampSignature = false;
     onChange(f.key);
     show();
   };
@@ -404,6 +426,12 @@ function renderMain() {
     scanStatus.textContent = msg;
   };
 
+  // The person changed while a read was running, so its result is not theirs.
+  const discardedScan = () => {
+    cropArea.replaceChildren();
+    setScanStatus("", "A read that was still running when you changed person was discarded.");
+  };
+
   // Apply extracted fields to the profile, flash what changed, return the keys.
   function applyScanFields(fields) {
     const changed = new Set();
@@ -422,14 +450,18 @@ function renderMain() {
 
   async function handleScan(file, scanFn, label, onFail) {
     setScanStatus("busy", `Reading ${label} locally... (first OCR run takes a few seconds)`);
+    const who = state.person;
     try {
       // The license-front scan can run a dozen sequential OCR passes, so it
       // reports progress; the other scanners ignore the callback.
-      const { fields, source } = await scanFn(file, (msg) => setScanStatus("busy", msg));
+      const { fields, source } = await scanFn(file, (msg) => who === state.person && setScanStatus("busy", msg));
+      if (who !== state.person) return discardedScan();
       const changed = applyScanFields(fields);
-      const warn = fields.passportNumberUnverified
+      let warn = fields.passportNumberUnverified
         ? ` Passport number "${fields.passportNumberUnverified}" failed its check digit; verify it manually.`
         : "";
+      // Barcode truncation flags (aamva.js): the name on the card was cut short.
+      for (const w of fields.warnings || []) warn += ` ${w}`;
       setScanStatus(
         "ok",
         `${source}: filled ${changed.size} field${changed.size === 1 ? "" : "s"} (${[...changed].join(", ") || "none new"}). Review below before generating.${warn}`
@@ -442,6 +474,7 @@ function renderMain() {
         cropArea.replaceChildren();
       }
     } catch (e) {
+      if (who !== state.person) return discardedScan();
       if (onFail) onFail(file, e);
       else setScanStatus("err", e.message);
     }
@@ -468,8 +501,13 @@ function renderMain() {
   // scan: every value flashes yellow and nothing is trusted blindly.
   async function handleImport(file) {
     setScanStatus("busy", "Reading the packet locally...");
+    const who = state.person;
     try {
       const { profile: got, employer: emp } = await readFilledPacket(await file.arrayBuffer());
+      if (who !== state.person) return discardedScan();
+      // A packet read in is a different person than the one the tick was for.
+      state.genOptions.stampSignature = false;
+      stampCb.checked = false;
       const changed = applyScanFields(got);
       const seeded = applyEmployerIfEmpty(emp);
       const standing = seeded.length ? ` Filled ${seeded.length} empty standing detail${seeded.length === 1 ? "" : "s"}.` : "";
@@ -480,6 +518,7 @@ function renderMain() {
       );
       cropArea.replaceChildren();
     } catch (e) {
+      if (who !== state.person) return discardedScan();
       setScanStatus("err", e.message);
     }
   }
@@ -567,6 +606,7 @@ function renderMain() {
           const region = sel && sel.w > 8 && sel.h > 8 ? sel : { x: 0, y: 0, w: dw, h: dh };
           const inv = 1 / dispScale;
           setScanStatus("busy", mode.busy);
+          const who = state.person;
           try {
             const { fields, source } = await mode.read(
               bitmap,
@@ -575,10 +615,12 @@ function renderMain() {
               region.w * inv,
               region.h * inv
             );
+            if (who !== state.person) return discardedScan();
             const changed = applyScanFields(fields);
             setScanStatus("ok", `${source}: filled ${changed.size} field${changed.size === 1 ? "" : "s"}. Review below before generating.`);
             cropArea.replaceChildren();
           } catch (e2) {
+            if (who !== state.person) return discardedScan();
             setScanStatus("err", e2.message);
           }
         },
@@ -689,33 +731,44 @@ function renderMain() {
     );
   }
 
+  const genBtn = h("button", { class: "btn primary", onclick: () => generate() }, "Generate & download");
+  let generating = false;
   async function generate() {
-    const profile = state.profile;
+    if (generating) return;
     if (!packetCb.checked && !w4Cb.checked && !i9Cb.checked) return setGenStatus("err", "Select at least one form.");
     // A rate goes onto a form the attendant signs, so one that is not dollars
     // and cents stops here rather than going out at 33.517 an hour.
-    const bad = moneyErrors(profile);
+    const bad = moneyErrors(state.profile);
     if (bad.length) return setGenStatus("err", `${bad[0].label}: ${bad[0].message}`);
-    // The signature is passed only when this packet was confirmed for it.
-    const emp = opts.stampSignature ? state.employer : { ...state.employer, signature: "" };
+    // Everything below awaits, so work from a snapshot: an edit made mid-run
+    // must not land in half the files. The signature is passed only when this
+    // packet was confirmed for it.
+    const profile = structuredClone(state.profile);
+    const stamp = !!opts.stampSignature;
+    const genOpts = { ...opts, stampSignature: stamp };
+    const emp = structuredClone(state.employer);
+    const hadSignature = !!emp.signature;
+    if (!stamp) emp.signature = "";
+    generating = true;
+    genBtn.disabled = true;
     setGenStatus("busy", "Filling forms locally...");
     try {
       const stem = `${profile.last || "attendant"}-${profile.first || ""}`.replace(/[^\w-]+/g, "");
       if (packetCb.checked) {
         const bytes = await fetchTemplate("forms/CO-CDASS-Attendant-Packet-2026.pdf");
-        download(await fillPacket2026(bytes, profile, emp, opts), `${stem}-CDASS-packet-2026.pdf`);
+        download(await fillPacket2026(bytes, profile, emp, genOpts), `${stem}-CDASS-packet-2026.pdf`);
       }
       if (w4Cb.checked) {
         const bytes = await fetchTemplate("forms/w4.pdf");
-        download(await fillW4(bytes, profile, emp, opts), `${stem}-W4.pdf`);
+        download(await fillW4(bytes, profile, emp, genOpts), `${stem}-W4.pdf`);
       }
       if (i9Cb.checked) {
         const bytes = await fetchTemplate("forms/i9.pdf");
-        download(await fillI9Standalone(bytes, profile, emp, opts), `${stem}-I9.pdf`);
+        download(await fillI9Standalone(bytes, profile, emp, genOpts), `${stem}-I9.pdf`);
       }
-      const stamped = state.employer.signature
-        ? opts.stampSignature
-          ? ` The employer signature on file for ${state.employer.signatureFor || "an unrecorded name"} was stamped on the employer lines.`
+      const stamped = hadSignature
+        ? stamp
+          ? ` The employer signature on file for ${emp.signatureFor || "an unrecorded name"} was stamped on the employer lines.`
           : " No signature was stamped; every signature line is blank."
         : "";
       setGenStatus(
@@ -726,6 +779,9 @@ function renderMain() {
     } catch (e) {
       console.error(e);
       setGenStatus("err", "Failed: " + e.message);
+    } finally {
+      generating = false;
+      genBtn.disabled = false;
     }
   }
 
@@ -834,7 +890,7 @@ function renderMain() {
       h("label", { class: "check" }, newServiceCb, "Rate form: this is a new service (uncheck for an hourly-rate change)"),
       h("h3", {}, "Employer signature"),
       renderStampConfirm(),
-      h("div", { class: "btnrow" }, h("button", { class: "btn primary", onclick: generate }, "Generate & download")),
+      h("div", { class: "btnrow" }, genBtn),
       genStatus,
       afterGen,
       h(
@@ -853,12 +909,11 @@ function renderMain() {
           onclick: () => {
             if (!confirm("Clear this person's information and start a new one? This removes their data from this browser.")) return;
             store.clearProfile();
+            // A new person starts from default packet options, including an
+            // unticked signature: those belonged to the packet they were set for.
+            newPerson();
             state.profile = blankProfile();
             store.saveProfile(state.profile);
-            // A new person re-confirms the signature: the tick belonged to the
-            // packet it was made for.
-            state.genOptions.stampSignature = false;
-            state.purgedNote = null;
             render();
           },
         },
@@ -884,7 +939,12 @@ function renderSettings() {
     saveStatus.className = "status busy";
     saveStatus.textContent = "Saving...";
     try {
-      await store.saveEmployer(state.employer);
+      const ok = await store.saveEmployer(state.employer);
+      if (ok === false) {
+        saveStatus.className = "status err";
+        saveStatus.textContent = "Could not save: the write failed, so these details may not survive closing the app.";
+        return;
+      }
       const at = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       saveStatus.className = "status ok";
       saveStatus.textContent = `Saved at ${at}, on this machine only.`;
@@ -941,8 +1001,12 @@ function renderEncryptionControls() {
                 alert("That passphrase is too weak. Use at least four random words.");
                 return;
               }
-              const changed = await store.changePassphrase(cur, nw);
-              alert(changed ? "Passphrase changed." : "That current passphrase was wrong.");
+              try {
+                const changed = await store.changePassphrase(cur, nw);
+                alert(changed ? "Passphrase changed." : "That current passphrase was wrong.");
+              } catch (err) {
+                alert("Could not change the passphrase, the saved data is unchanged: " + err.message);
+              }
             },
           },
           "Change passphrase"
@@ -967,7 +1031,11 @@ function renderEncryptionControls() {
             onclick: async () => {
               if (!confirm("Turn off encryption? Your saved data will be stored unencrypted again."))
                 return;
-              await store.disableEncryption();
+              try {
+                await store.disableEncryption();
+              } catch (err) {
+                alert("Could not turn off encryption: " + err.message);
+              }
               render();
             },
           },
@@ -1015,7 +1083,11 @@ function renderEncryptionControls() {
               alert("That passphrase is too weak. Use at least four random words.");
               return;
             }
-            await store.enableEncryption(p1.value);
+            try {
+              await store.enableEncryption(p1.value);
+            } catch (err) {
+              alert("Could not encrypt the saved data: " + err.message);
+            }
             render();
           },
         },
@@ -1047,13 +1119,16 @@ function renderPrivacyCard() {
       const f = e.target.files[0];
       if (!f) return;
       try {
-        store.importAll(await f.text());
+        await store.importAll(await f.text());
+        newPerson();
         state.profile = store.loadProfile();
         state.employer = store.loadEmployer();
         alert("Backup imported.");
         render();
       } catch (err) {
-        alert("Import failed: " + err.message);
+        alert("Import failed: " + (err?.message || err));
+      } finally {
+        e.target.value = "";
       }
     },
   });
@@ -1086,6 +1161,13 @@ function renderPrivacyCard() {
         {
           class: "btn",
           onclick: () => {
+            if (
+              store.isEncrypted() &&
+              !confirm(
+                "Your saved data is encrypted, but this backup file is NOT. It will contain the SSN, bank details and signature in plain text. Export anyway?"
+              )
+            )
+              return;
             const blob = new Blob([store.exportAll()], { type: "application/json" });
             const a = h("a", { href: URL.createObjectURL(blob), download: "cdass-enroll-backup.json" });
             a.click();
@@ -1101,6 +1183,7 @@ function renderPrivacyCard() {
           onclick: () => {
             if (!confirm("Permanently delete the saved person and your standing details from this browser?")) return;
             store.wipeAll();
+            newPerson();
             state.profile = blankProfile();
             state.employer = store.loadEmployer();
             render();

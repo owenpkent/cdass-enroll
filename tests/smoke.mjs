@@ -328,7 +328,7 @@ const profile = {
   pplId: "ATT-001", relationship: "nonrelative", liveIn: "doesNotLive",
   relationToEmployer: "none", fullTimeStudent: false, primaryJob: true,
   citizenship: "citizen", uscisNumber: "", workAuthExpiration: "", i94Number: "", foreignPassport: "",
-  dlNumber: "123456789", dlState: "CO", dlExpiration: "2030-09-30",
+  dlNumber: "123456789", dlState: "CO", dlExpiration: "2030-09-30", ssnCardPresented: true,
   passportNumber: "", passportExpiration: "",
   filingStatus: "single", multipleJobs: true,
   rateStandardCdass: "20.00", rateEmergencyCdass: "45",
@@ -361,7 +361,7 @@ expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
   const out = await PDFDocument.load(p26);
   expect("packet output keeps every page (exact copy)", out.getPageCount() === tmpl.getPageCount(), `${out.getPageCount()} vs ${tmpl.getPageCount()}`);
   const nOut = out.getForm().getFields().length, nTmpl = tmpl.getForm().getFields().length;
-  expect("packet fields stay editable (not flattened)", nOut === nTmpl && nOut > 0, `${nOut} vs ${nTmpl}`);
+  expect("packet fields stay editable (not flattened)", nOut === nTmpl + 1 && nOut > 0, `${nOut} vs ${nTmpl} (+1: page 8 mailing State split off its shared field)`);
 }
 
 // An uploaded employer signature must overlay without changing pages or fields.
@@ -372,7 +372,7 @@ expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
   const tmpl = await PDFDocument.load(packet2026Src);
   expect(
     "signed packet keeps pages and fields (stays an exact editable copy)",
-    out.getPageCount() === tmpl.getPageCount() && out.getForm().getFields().length === tmpl.getForm().getFields().length,
+    out.getPageCount() === tmpl.getPageCount() && out.getForm().getFields().length === tmpl.getForm().getFields().length + 1,
     `${out.getPageCount()} pages / ${out.getForm().getFields().length} fields`
   );
 }
@@ -683,6 +683,48 @@ expect("no unresolved field names in any mapping", mappingWarnings.length === 0,
   expect("money: the value is left exactly as typed", p.rateStandardCdass === "33.517", p.rateStandardCdass);
 }
 
+// ---- Bug-fix block: money scoping, W-4 totals, mailing State, MaxLen, I-9 gating, EVV relationship ----
+{
+  const { moneyError, moneyErrors, normalizeMoney, PROFILE_SECTIONS } = await import("../src/schema.js");
+  const field = (k) => PROFILE_SECTIONS.flatMap((s) => s.fields).find((f) => f.key === k);
+  expect("money: W-4 $2000 and $0 pass (no rate bounds)", moneyError("2000", field("childrenCredit")) === null && moneyError("0", field("extraWithholding")) === null, "");
+  expect("money: W-4 amount error does not say rate", !/rate/i.test(moneyError("abc", field("deductions"))), String(moneyError("abc", field("deductions"))));
+  expect("money: rate bounds still apply to rate fields", moneyError("500", field("rateStandardCdass")) !== null, "");
+  expect("money: moneyErrors passes a profile with W-4 $2000", moneyErrors({ childrenCredit: "2000", extraWithholding: "0", rateStandardCdass: "20" }).length === 0, "");
+  expect("money: decimal comma is not 185", normalizeMoney("18,5") === "18,5" && moneyError("18,5") !== null, normalizeMoney("18,5"));
+  expect("money: thousands commas still stripped", normalizeMoney("$1,234,567.50") === "1234567.50" && normalizeMoney("12,34") === "12,34", "");
+
+  const read = async (bytes, names) => readFields(bytes, names);
+  const w4 = await fillW4(readFileSync(new URL("../public/forms/w4.pdf", import.meta.url)), { ...profile, childrenCredit: "$1,000", otherDependentsCredit: "500.50", otherIncome: "", extraWithholding: "$0" }, employer, opts);
+  const w4f = (await PDFDocument.load(w4)).getForm();
+  const w4vals = Object.fromEntries(w4f.getFields().filter((f) => typeof f.getText === "function").map((f) => [f.getName().split(".").pop(), f.getText()]));
+  expect("W-4: Step 3 total sums normalized amounts in cents", w4vals["f1_08[0]"] === "1500.5" || w4vals["f1_08[0]"] === "1500.50", JSON.stringify(w4vals));
+  expect("W-4: $1,000 written as 1000", w4vals["f1_06[0]"] === "1000", String(w4vals["f1_06[0]"]));
+
+  // Mailing State on a paper-check packet must not touch the I-9 State.
+  const away = { ...profile, directDeposit: false, mailingSame: false, mailStreet: "PO Box 9", mailCity: "Aspen", mailState: "NM", mailZip: "81611" };
+  const pk = await fillPacket2026(packet2026Src, away, employer, opts);
+  const pf = (await PDFDocument.load(pk)).getForm();
+  expect("packet: page 8 mailing State is its own field", pf.getTextField("Payment mailing State").getText() === "NM", "");
+  expect("packet: I-9 State keeps the home state", pf.getTextField("State").getText() === "CO", String(pf.getTextField("State").getText()));
+
+  // MaxLen: ZIP+4 and A-Number.
+  const zipA = { ...profile, zip: "80203-1234", citizenship: "alien", uscisNumber: "A-123 456 789" };
+  const zf = await read(await fillI9Standalone(readFileSync(new URL("../public/forms/i9.pdf", import.meta.url)), zipA, employer, opts), ["ZIP Code", "USCIS ANumber"]);
+  expect("I-9: ZIP+4 fills the 5-digit ZIP, A-Number digits only", zf["ZIP Code"] === "80203" && zf["USCIS ANumber"] === "123456789", JSON.stringify(zf));
+
+  // List C needs the explicit choice; issuer never falls back to the home state.
+  const noCard = await read(await fillI9Standalone(readFileSync(new URL("../public/forms/i9.pdf", import.meta.url)), { ...profile, ssnCardPresented: false, dlState: "" }, employer, opts), ["List C Document Number 1", "List B Issuing Authority 1", "List B Document Number 1"]);
+  expect("I-9: List C blank without ssnCardPresented; no home-state DL issuer", noCard["List C Document Number 1"] === "" && noCard["List B Issuing Authority 1"] === "" && noCard["List B Document Number 1"] === "123456789", JSON.stringify(noCard));
+
+  // EVV relationship follows the Member relationship.
+  const evv = async (pr) => (await PDFDocument.load(await fillPacket2026(packet2026Src, { ...profile, liveIn: "fullTime", ...pr }, employer, opts))).getForm();
+  const sp = await evv({ relationship: "spouse", relationToEmployer: "none" });
+  expect("EVV: spouse of the Member -> Yes + Spouse", sp.getTextField("If yes describe their relationship parent spouse sibling etc").getText() === "Spouse" && sp.getRadioGroup("Is the caregiver legally responsible for the member").getSelected() === "Yes", "");
+  const nr = await evv({ relationship: "nonrelative", relationToEmployer: "parent" });
+  expect("EVV: employer relation no longer leaks into the relationship box", (nr.getTextField("If yes describe their relationship parent spouse sibling etc").getText() ?? "") === "", "");
+}
+
 // ---- Employer signature: only stamped for the packet it was confirmed for ----
 {
   const { blankEmployer } = await import("../src/schema.js");
@@ -757,6 +799,70 @@ expect("no unresolved field names in any mapping", mappingWarnings.length === 0,
 
   // Clear-on-start also removes the legacy array so it cannot resurrect.
   expect("clear-on-start removes the legacy array", store.clearProfileOnStart() === true && store.loadProfile().first === "", "legacy cleared");
+}
+
+// ---- main.js per-person reset wiring (DOM-bound, so checked on the source) ----
+{
+  const src = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+  const count = (re) => (src.match(re) || []).length;
+  const body = (name) => src.slice(src.indexOf(`function ${name}(`), src.indexOf(`function ${name}(`) + 400);
+  expect("genOptions come from one defaults function", /const newGenOptions = \(\) =>/.test(src) && count(/genOptions: \{/g) === 0, "defaults");
+  expect(
+    "newPerson resets all genOptions and bumps the person counter",
+    /state\.person\+\+/.test(body("newPerson")) && /state\.genOptions = newGenOptions\(\)/.test(body("newPerson")),
+    "newPerson"
+  );
+  expect("Start over, Wipe all and backup import all call newPerson", count(/\bnewPerson\(\);/g) >= 3, String(count(/\bnewPerson\(\);/g)));
+  expect("scan, cropper and packet import discard stale results", count(/who !== state\.person/g) >= 6, String(count(/who !== state\.person/g)));
+  expect("signature upload and clear untick stampSignature", count(/state\.genOptions\.stampSignature = false/g) >= 3, "sig");
+  expect("generate() is guarded and works from a snapshot", /if \(generating\) return;/.test(src) && /structuredClone\(state\.profile\)/.test(src), "generate");
+  expect("checkboxes carry data-key and refreshInputs sets them", /cb\.dataset\.key = f\.key/.test(src) && /el\.type === "checkbox"/.test(src), "checkbox");
+  expect("Save details reads the boolean result", /const ok = await store\.saveEmployer/.test(src), "save");
+  expect("backup export warns when encrypted", /store\.isEncrypted\(\) &&\s*!confirm/.test(src), "export");
+}
+
+// ---- extractor hardening: never hand back a guessed value ----
+{
+  // MRZ: digit fix-ups must not touch the alphanumeric passport number.
+  const mk = (num) => {
+    const w = [7, 3, 1];
+    const cs = (s) => String([...s].reduce((a, c, i) => a + (c === "<" ? 0 : /\d/.test(c) ? +c : c.charCodeAt(0) - 55) * w[i % 3], 0) % 10);
+    const n = num.padEnd(9, "<");
+    return [
+      "P<UTODOE<<JANE<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<",
+      `${n}${cs(n)}UTO8606067F3105155<<<<<<<<<<<<<<04`.replace(/(.{13})8606067F3105155/, (_, a) => a + "8606067F3105155"),
+    ].join("\n");
+  };
+  const good = parseMrz(mk("L12345678"));
+  expect("MRZ keeps a letter in the passport number", good?.passportNumber === "L12345678" || good?.passportNumberUnverified === "L12345678", JSON.stringify(good));
+  expect("MRZ never rewrites L12345678 to 112345678", !JSON.stringify(good).includes("112345678"), JSON.stringify(good));
+
+  // AAMVA: CR subfile terminators, truncation flags, second subfile.
+  const cr = parseAamva("@\n\x1e\rANSI 636020090002DL00410278ZC03190008DLDAQ123456789\nDCSDOE\nDACJANE\nDBB06061986\nDAJCO\rZCZCAXX\nDDET\nDDFN\r");
+  expect("AAMVA state survives a trailing CR subfile", cr.state === "CO" && cr.dlState === "CO", JSON.stringify(cr));
+  const cr2 = parseAamva("@\n\x1e\rANSI 636020090002DL00410278ZC03190008DLDAQ123456789\nDCSDOE\nDACJANE\nDAJCO\nDBB06061986\rZCZCAXX");
+  expect("AAMVA trailing DBB with CR parses", cr2.dob === "1986-06-06", JSON.stringify(cr2));
+  expect("AAMVA reports a truncated last name", cr.warnings?.length === 1 && /last/.test(cr.warnings[0]), JSON.stringify(cr.warnings));
+  expect("AAMVA warnings are not enumerable (never reach the profile)", !Object.keys(cr).includes("warnings"));
+  expect("AAMVA no warnings when not truncated", parseAamva(aamvaRaw).warnings === undefined);
+
+  // Licence front.
+  const f = (t) => parseLicenseFront(t, Date.UTC(2026, 0, 1));
+  expect("front: DOB bound to its own label", f("ISS 01/05/2020 DOB 03/04/1990")?.dob === "1990-03-04", JSON.stringify(f("ISS 01/05/2020 DOB 03/04/1990")));
+  expect("front: issue date alone is not the DOB", !f("ISS 01/05/2020")?.dob, JSON.stringify(f("ISS 01/05/2020")));
+  expect("front: impossible calendar date rejected", !f("DOB 02/31/1990")?.dob, JSON.stringify(f("DOB 02/31/1990")));
+  const addr = f("DOB 08/23/1990\nDENVER CO 80203");
+  expect("front: no street from a DOB line", addr?.street === undefined && addr?.city === "Denver", JSON.stringify(addr));
+  expect("front: real street kept", f("1234 MAIN ST\nDENVER CO 80203")?.street === "1234 Main St");
+  expect("front: boilerplate is not a name", !f("LIMITED TERM")?.last && !f("UNITED STATES")?.last, JSON.stringify([f("LIMITED TERM"), f("UNITED STATES")]));
+  expect("front: line with a rejected word fails whole", parseNameRegion("SMITH\nGEORGIA ANN") === null && parseNameRegion("ST JOHN") === null, JSON.stringify(parseNameRegion("SMITH\nGEORGIA ANN")));
+
+  // SSN card.
+  expect("SSN: CARDENAS and WORKMAN are not boilerplate", parseSsnCard("MARIA CARDENAS")?.last === "Cardenas" && parseSsnCard("JOHN WORKMAN")?.last === "Workman");
+  const jr = parseSsnCard("JOHN SMITH JR");
+  expect("SSN: generational suffix is not the surname", jr?.first === "John" && jr?.last === "Smith", JSON.stringify(jr));
+  const dlc = parseSsnCard("MARIA DE LA CRUZ");
+  expect("SSN: ambiguous particle surname returns first only", dlc?.first === "Maria" && !dlc?.last && !dlc?.middle, JSON.stringify(dlc));
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nAll smoke tests passed.");

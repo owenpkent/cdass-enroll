@@ -59,6 +59,9 @@ const SUBFILE_ELEMENT = /(?:DL|ID)([A-Z]{3})/g;
  * this: "DLDAQ" contains no valid element ID other than DAQ.
  */
 function elementStart(line) {
+  // A later subfile begins "DL"/"ID" + its first element on its own line.
+  const sub = line.match(/^(?:DL|ID)([A-Z]{3})/);
+  if (sub && CODE_SET.has(sub[1]) && !line.includes("ANSI ")) return 2;
   if (!line.includes("ANSI ")) return 0;
   let at = -1;
   for (const m of line.matchAll(SUBFILE_ELEMENT)) if (CODE_SET.has(m[1])) at = m.index + 2;
@@ -68,7 +71,10 @@ function elementStart(line) {
 export function parseAamva(raw) {
   if (!raw || !raw.includes("ANSI ")) return null;
   const el = {};
-  for (const line of raw.split("\n")) {
+  // Elements end in LF and subfiles in CR, so a subfile's last element is
+  // followed by CR and then the next subfile ("DAJCO\rZCZCAXX"). Split on every
+  // line terminator so no element swallows its neighbour.
+  for (const line of raw.split(/\r\n|[\r\n]/)) {
     const start = elementStart(line);
     if (start < 0) continue;
     const code = line.slice(start, start + 3);
@@ -81,7 +87,16 @@ export function parseAamva(raw) {
   let last = el.DCS ?? "";
   if (!last && el.DAA) [last = "", first = "", middle = ""] = el.DAA.split(",");
 
-  return clean({
+  // DDE/DDF/DDG say whether the family/first/middle name was truncated to fit
+  // the barcode field: T truncated, N not, U unknown. A truncated part is not
+  // the person's full legal name, so say so rather than present it as complete.
+  const warnings = [];
+  for (const [code, part, src] of [["DDE", "last", "DCS"], ["DDF", "first", "DAC"], ["DDG", "middle", "DAD"]]) {
+    if (el[code]?.trim().toUpperCase() === "T" && el[src])
+      warnings.push(`The ${part} name was truncated in the barcode; check it against the card.`);
+  }
+
+  const out = clean({
     first: titleCase(first),
     middle: titleCase(stripNone(middle)),
     last: titleCase(last),
@@ -98,6 +113,10 @@ export function parseAamva(raw) {
     dlState: el.DAJ,
     dlExpiration: aamvaDate(el.DBA),
   });
+  // Non-enumerable so a caller that copies every field of the result into the
+  // profile (Object.entries) does not persist the warnings.
+  if (warnings.length) Object.defineProperty(out, "warnings", { value: warnings, enumerable: false });
+  return out;
 }
 
 // US AAMVA dates are MMDDCCYY; Canadian are CCYYMMDD. Returns ISO yyyy-mm-dd.

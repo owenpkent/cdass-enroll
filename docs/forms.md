@@ -87,9 +87,32 @@ Quirks of the original PDF (not bugs in this app):
   one-character fields ("Routing number 1".."9", "Account number 1".."13").
 - **EVV exemption City/State/ZIP are shared with the I-9 employee address.**
   Harmless: a live-in attendant's address is the shared residence anyway.
-- **The shared State field also surfaces on the Direct Deposit page**, so the
-  paper-check mailing State box shows the attendant's state even when direct
-  deposit is selected. Cosmetic only.
+- **Page 8 "State" is the same PDF field as the I-9 and EVV State.** One
+  field, three widgets (Direct Deposit page 8, EVV page 13, I-9 page 19, the
+  last a dropdown). Writing it for the paper-check mailing address would
+  overwrite the I-9 state, and leaving it alone made the page 8 box show the
+  home state beside an out-of-state mailing city/ZIP. `fillPacket2026` calls
+  `splitWidgetToOwnField` (util.js) before `getForm()` to detach the page 8
+  widget into its own text field, `Payment mailing State`, which is written with
+  the mailing state (home state when the mailing address is the same). The
+  other two widgets stay shared. Page 8 `Zip Code` and `City` are separate
+  fields (the I-9 ones are `ZIP Code` and `City or Town`).
+- **MaxLen boxes.** I-9 `ZIP Code` is MaxLen 6, `USCIS ANumber` 10, `Form I94
+  Admission Number` 11, SSN 9. pdf-lib rejects a longer value and the box stays
+  blank, so the mapping sends the 5-digit ZIP (not ZIP+4), A-Number digits only
+  (no "A", hyphens, spaces), and I-94 alphanumerics only. `setText` logs a
+  warning naming the field, value length and MaxLen if anything still overflows.
+- **EVV "legally responsible" question** asks about the caregiver's
+  relationship to the Member (`relationship`), not the employer. A spouse
+  checks Yes and writes "Spouse"; a parent is left for the human, since parents
+  are only legally responsible for a minor or ward.
+- **I-9 List C (Social Security card)** is listed only when the profile's
+  "Social Security card was examined" box (`ssnCardPresented`, default off) is
+  checked, alongside the driver's license. The license issuer comes from
+  `dlState` only and is blank when unknown.
+- **W-4 amounts** are normalized (punctuation only) before writing; the Step 3
+  total is summed in integer cents and left blank if any entered part is not a
+  valid amount. Only `rate: true` fields get the $1-$200 bounds.
 - **Age-gated attestations.** "I am under 18 years old and a full-time
   student", "...under the age of 21" etc. are only checked when the date of
   birth confirms the age, regardless of the profile toggles.

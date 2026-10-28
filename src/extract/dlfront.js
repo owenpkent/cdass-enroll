@@ -20,21 +20,36 @@ export function parseLicenseFront(ocrText, now = Date.now()) {
   // "earliest wins" rule silently filled the expiry as the date of birth.
   // Leaving it blank for the user to type is the safe failure.
   const dates = [];
+  // A date belongs to the nearest label printed before it on its line (or, if
+  // none, to a label ending the previous line). "ISS 01/05/2020 DOB 03/04/1990"
+  // therefore binds 2020 to ISS and 1990 to DOB; a date under another label
+  // (ISS, EXP) is never a candidate birth date.
+  const LABEL = /\b(DATE\s+OF\s+BIRTH|DOB|BIRTH(?:\s*DATE)?|ISS(?:UED?)?|EXP(?:IRES|IRATION)?|DUP)\b/gi;
+  const kindOf = (label) => (/BIRTH|DOB/i.test(label) ? "dob" : "other");
+  let carried = null; // label that ended the previous line with no date after it
   for (const line of lines) {
+    const labels = [...line.matchAll(LABEL)].map((m) => ({ at: m.index, kind: kindOf(m[1]) }));
+    let lastDateEnd = 0;
     // Spaces around the separators are tolerated: OCR of a tight crop routinely
     // reads "08/ 23/2003" for "08/23/2003".
     for (const m of line.matchAll(/\b(\d{1,2})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(\d{4})\b/g)) {
+      lastDateEnd = m.index + m[0].length;
       const mm = +m[1];
       const dd = +m[2];
       const yy = +m[3];
-      if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yy < 1900 || yy > 2100) continue;
+      if (!isRealDate(yy, mm, dd) || yy < 1900) continue;
       if (Date.UTC(yy, mm - 1, dd) > now) continue;
-      dates.push({ iso: `${yy}-${pad(mm)}-${pad(dd)}`, yy, labeled: /DOB|BIRTH/i.test(line) });
+      const before = labels.filter((l) => l.at < m.index).pop();
+      const kind = before ? before.kind : carried;
+      dates.push({ iso: `${yy}-${pad(mm)}-${pad(dd)}`, yy, kind });
     }
+    carried = !lastDateEnd && labels.length ? labels[labels.length - 1].kind : null;
   }
   if (dates.length) {
-    const labeled = dates.find((d) => d.labeled);
-    out.dob = (labeled ?? dates.reduce((a, b) => (b.yy < a.yy ? b : a))).iso;
+    const labeled = dates.find((d) => d.kind === "dob");
+    const unlabeled = dates.filter((d) => !d.kind);
+    const pick = labeled ?? (unlabeled.length ? unlabeled.reduce((a, b) => (b.yy < a.yy ? b : a)) : null);
+    if (pick) out.dob = pick.iso;
   }
 
   // Name: best-effort, see parseName. Only fields it is confident about land.
@@ -49,12 +64,32 @@ export function parseLicenseFront(ocrText, now = Date.now()) {
       out.city = titleCase(city);
       out.state = m[2];
       out.zip = m[3];
-      if (/\d/.test(lines[i - 1])) out.street = titleCase(lines[i - 1]);
+      const street = streetLine(lines[i - 1]);
+      if (street) out.street = titleCase(street);
       break;
     }
   }
 
   return Object.keys(out).length ? out : null;
+}
+
+// A street line starts with a house number (optionally behind the AAMVA field
+// marker "8") followed by words, or is a PO box. It carries no date and no
+// field label: when OCR drops the street, the line above the city is often
+// "DOB 08/23/1990" or "DD 1234567", which must not become an address.
+function streetLine(raw) {
+  let t = raw.trim().replace(/^8\s+(?=\d)/, "");
+  if (/\d\s*[/\-.]\s*\d+\s*[/\-.]\s*\d{2,4}/.test(t)) return "";
+  if (/\b(?:DOB|BIRTH|EXP|EXPIRES|ISS|ISSUED|CLASS|SEX|HGT|WGT|EYES|HAIR|DD|END|REST|LIC|DL|ORGAN|DONOR|VETERAN)\b/i.test(t)) return "";
+  if (/^P\.?\s?O\.?\s*BOX\s+\d+\b/i.test(t)) return t;
+  if (/^\d{1,6}[A-Za-z]?(?:\s+|-)[A-Za-z0-9]/.test(t) && /[A-Za-z]{2}/.test(t)) return t;
+  return "";
+}
+
+function isRealDate(y, m, d) {
+  if (m < 1 || m > 12 || d < 1) return false;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
 // Document chrome, field labels, and address parts: never a person's name, in
@@ -67,7 +102,14 @@ const CHROME_STOP = new Set(
     "EYES EYE HAIR HGT HT WGT WT HEIGHT WEIGHT DD DL LN FN REV END ENDORSEMENTS " +
     "REST RESTRICTIONS DONOR ORGAN VETERAN ADDRESS ADDR " +
     "ST STREET AVE AVENUE RD ROAD BLVD BOULEVARD DR DRIVE CT COURT PL PLACE WAY " +
-    "HWY LANE CIR CIRCLE TER TERRACE PKWY APT UNIT STE FL"
+    "HWY LANE CIR CIRCLE TER TERRACE PKWY APT UNIT STE FL " +
+    // Card boilerplate that otherwise passes as a two-to-four word "name"
+    // ("LIMITED TERM", "UNITED STATES", "NOT FOR FEDERAL IDENTIFICATION").
+    "LIMITED TERM TEMPORARY TEMP VISITOR LEGAL PRESENCE UNITED STATES AMERICA " +
+    "NOT FOR OFFICIAL PURPOSES IDENTITY PROOF UNTIL VALID UNDER AGE OPERATOR " +
+    "COMMERCIAL NONCOMMERCIAL MOTORCYCLE MOPED PERMIT LEARNER INSTRUCTION " +
+    "PROVISIONAL ENHANCED DEPARTMENT DEPT MOTOR VEHICLE VEHICLES DIVISION " +
+    "SERVICES REVENUE TRANSPORTATION ID NON CITIZEN RESIDENT DUPLICATE ISSUED"
   ).split(/\s+/)
 );
 
@@ -195,6 +237,12 @@ export function parseNameRegion(text, { requireTwoLines = false } = {}) {
     // A single letter counts only after a real token: trailing, it is a middle
     // initial; leading, it is a mangled field marker.
     const toks = raws.filter((t, i) => (t.length >= 2 || i > 0) && isNameToken(t, marked));
+    // A rejected word inside a line that also has name words fails the whole
+    // line. Dropping it would shift the rest into the wrong slot ("GEORGIA ANN"
+    // -> first "Ann", "ST JOHN" -> last "John"). ST stays a stopword: it is far
+    // more often a street suffix than a name, and a miss only leaves the field
+    // for the user to type.
+    if (toks.length && raws.some((t, i) => (t.length >= 2 || i > 0) && !isNameToken(t, marked) && /^[A-Za-z][A-Za-z'’\-]*$/.test(t) && t.length >= 2)) return null;
     // A name field holds a handful of words ("Van Der Berg" is already the long
     // end). A dozen short ones is the security-pattern background misread, which
     // is what a whole-card crop produces: pressing Read without drawing a box
