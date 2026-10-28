@@ -173,9 +173,12 @@ below as 0.1.0, and work since then sits under Unreleased.
   Enable, change and disable now build every envelope first and write the meta
   and both records in one synchronous block that rolls back together. A queued
   write made under an old key is dropped instead of landing after a re-key or
-  after encryption is turned off. Saves resolve `true`/`false`, and the Save
-  details button, the encryption dialogs and backup import report a failure
-  instead of success. Export warns that the backup is unencrypted.
+  after encryption is turned off; a plain lock still lets an accepted autosave
+  finish, since the stored key has not changed. Edits made while a passphrase
+  change or enable is running are re-encrypted into the commit rather than
+  overwritten by a snapshot from before them. Saves resolve `true`/`false`, and
+  the Save details button, the encryption dialogs and backup import report a
+  failure instead of success. Export warns that the backup is unencrypted.
 - **W-4 amounts were checked as hourly rates.** The $1 to $200 bound applied to
   every money field, so a $2,000 child credit or $0 extra withholding blocked
   Generate. Only the two rate fields (`rate: true`) are bounded now. A decimal
