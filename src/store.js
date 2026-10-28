@@ -27,6 +27,14 @@ const CHECK_MARKER = "cdass-vault-v1-ok"; // encrypted under the key to verify t
 let vaultKey = null; // CryptoKey when unlocked; null when encryption is off or locked
 const cache = { profile: null, employer: null }; // decrypted objects while unlocked
 const writeChains = new Map(); // storageKey -> Promise, serializes async writes
+// Bumped whenever the key the stored vault is encrypted under changes or the
+// vault goes away (enable, rekey, disable, wipe), so a write encrypted under
+// the old key is dropped. Locking does not bump it: the stored vault still
+// opens with the same passphrase, so a write accepted before the lock lands.
+let epoch = 0;
+// Counts accepted saves, so a rekey can tell whether an edit landed while it
+// was awaiting and re-encrypt the latest state instead of a stale snapshot.
+let saves = 0;
 
 export function isEncrypted() {
   return localStorage.getItem(VAULT_KEY) != null;
@@ -57,17 +65,18 @@ function isEnvelope(v) {
 // inside the ciphertext; the only cleartext is the { _enc, iv, ct } envelope
 // shell. Serialized per key so overlapping saves apply last-write-wins in call
 // order. Resolves true once the ciphertext landed, false if it failed or was
-// dropped; never rejects. A write queued under a key that is no longer the
-// current one (lock, rekey, encryption turned off) is dropped rather than
-// landing an envelope the vault can no longer open.
+// dropped; never rejects. A write queued before the stored vault changed key
+// (rekey, encryption turned off, wipe) is dropped rather than landing an
+// envelope the vault can no longer open; a lock alone does not drop it.
 function queueWrite(storageKey, value) {
   const key = vaultKey;
+  const at = epoch;
   const prev = writeChains.get(storageKey) || Promise.resolve();
   const next = prev
     .then(async () => {
-      if (vaultKey !== key) return false;
+      if (epoch !== at) return false;
       const env = await vault.encrypt(value, key);
-      if (vaultKey !== key) return false;
+      if (epoch !== at) return false;
       localStorage.setItem(storageKey, envelopeJson(env));
       return true;
     })
@@ -99,7 +108,7 @@ function restore(snap) {
 
 const envelopeJson = (env) => JSON.stringify({ _enc: 1, ...env });
 
-async function readEncrypted(storageKey) {
+async function readEncrypted(storageKey, key) {
   let raw;
   try {
     raw = JSON.parse(localStorage.getItem(storageKey));
@@ -108,7 +117,7 @@ async function readEncrypted(storageKey) {
   }
   if (!isEnvelope(raw)) return null;
   try {
-    return await vault.decrypt(raw, vaultKey);
+    return await vault.decrypt(raw, key);
   } catch (e) {
     console.warn("decrypt failed for", storageKey, e);
     return null;
@@ -151,6 +160,7 @@ function mostRecentLegacy() {
 /** Resolves true once saved, false if it could not be (locked, quota). Never rejects. */
 export function saveProfile(profile) {
   profile.touchedAt = Date.now();
+  saves++;
   if (isEncrypted()) {
     if (!isUnlocked()) {
       console.warn("store is locked; profile save ignored");
@@ -173,6 +183,7 @@ function setPlain(storageKey, value) {
 }
 
 export function clearProfile() {
+  saves++;
   localStorage.removeItem(PROFILE_KEY);
   cache.profile = null;
 }
@@ -211,6 +222,7 @@ export function loadEmployer() {
  * so a caller reporting the save (the Save button) can wait on it.
  */
 export function saveEmployer(employer) {
+  saves++;
   if (isEncrypted()) {
     if (!isUnlocked()) {
       console.warn("store is locked; employer save ignored");
@@ -227,6 +239,7 @@ export function wipeAll() {
   localStorage.removeItem(LEGACY_PROFILES_KEY);
   localStorage.removeItem(EMPLOYER_KEY);
   localStorage.removeItem(VAULT_KEY);
+  epoch++;
   lock();
 }
 
@@ -246,20 +259,30 @@ export function exportAll() {
  * check marker fails to verify). No-op-returns false if encryption is off.
  */
 export async function unlock(passphrase) {
+  const key = await verifyPassphrase(passphrase);
+  if (!key) return false;
+  const profile = await readEncrypted(PROFILE_KEY, key);
+  const employer = await readEncrypted(EMPLOYER_KEY, key);
+  // Set together with no await between, so a save made while the data was
+  // decrypting is not overwritten by the older copy read from storage.
+  vaultKey = key;
+  cache.profile = profile;
+  cache.employer = employer;
+  return true;
+}
+
+// The derived key if `passphrase` opens the stored vault, else null.
+async function verifyPassphrase(passphrase) {
   const meta = readVaultMeta();
-  if (!meta) return false;
+  if (!meta) return null;
   const salt = vault.b64ToBytes(meta.kdf.salt);
   const key = await vault.deriveKey(passphrase, salt, meta.kdf);
   try {
     const marker = await vault.decrypt(meta.check, key);
-    if (marker !== CHECK_MARKER) return false;
+    return marker === CHECK_MARKER ? key : null;
   } catch {
-    return false; // wrong passphrase, or a corrupt/tampered vault
+    return null; // wrong passphrase, or a corrupt/tampered vault
   }
-  vaultKey = key;
-  cache.profile = await readEncrypted(PROFILE_KEY);
-  cache.employer = await readEncrypted(EMPLOYER_KEY);
-  return true;
 }
 
 /** Drop the key and decrypted data from memory. Encryption stays on. */
@@ -280,13 +303,19 @@ export function lock() {
 export async function enableEncryption(passphrase) {
   if (isEncrypted()) throw new Error("Already encrypted");
   await flushWrites();
-  const currentProfile = loadProfile(); // plaintext read
-  const currentEmployer = loadEmployer();
   const salt = vault.newSalt();
   const key = await vault.deriveKey(passphrase, salt, vault.KDF);
   const check = await vault.encrypt(CHECK_MARKER, key);
-  const profileEnv = await vault.encrypt(currentProfile, key);
-  const employerEnv = await vault.encrypt(currentEmployer, key);
+  // Plaintext saves keep landing while the key derives; read the data after,
+  // and again if a save landed mid-encrypt, so the newest edit is the one kept.
+  let seq, currentProfile, currentEmployer, profileEnv, employerEnv;
+  do {
+    seq = saves;
+    currentProfile = loadProfile(); // plaintext read
+    currentEmployer = loadEmployer();
+    profileEnv = await vault.encrypt(currentProfile, key);
+    employerEnv = await vault.encrypt(currentEmployer, key);
+  } while (seq !== saves);
   const meta = JSON.stringify({ v: 1, kdf: { ...vault.KDF, salt: vault.bytesToB64(salt) }, check });
   const snap = snapshot([VAULT_KEY, PROFILE_KEY, EMPLOYER_KEY]);
   // No await from here to the end of the block, so a tab close cannot split it.
@@ -298,6 +327,7 @@ export async function enableEncryption(passphrase) {
     restore(snap);
     throw e;
   }
+  epoch++;
   vaultKey = key;
   cache.profile = currentProfile;
   cache.employer = currentEmployer;
@@ -324,6 +354,7 @@ export async function disableEncryption() {
     restore(snap);
     throw err;
   }
+  epoch++;
   lock();
 }
 
@@ -333,20 +364,29 @@ export async function disableEncryption() {
  * wrong. The new vault meta and both re-encrypted envelopes are written in one
  * synchronous block that rolls back together if any write throws, so the data
  * is never left under a key the stored check marker does not match (the error
- * is rethrown and the old passphrase keeps working).
+ * is rethrown and the old passphrase keeps working). The form stays editable
+ * meanwhile, so the envelopes are rebuilt until a pass completes with no save
+ * in between: the commit carries the latest edit, not a snapshot from before it.
  */
 export async function changePassphrase(oldPass, newPass) {
   await flushWrites();
-  if (!(await unlock(oldPass))) return false;
-  const prevKey = vaultKey;
-  const prevCache = { ...cache };
-  const profile = cache.profile ?? blankProfile();
-  const employer = cache.employer ?? blankEmployer();
+  if (isUnlocked()) {
+    // Verify only: unlocking again would replace the cache with fresh copies
+    // and orphan the objects the form is editing.
+    if (!(await verifyPassphrase(oldPass))) return false;
+  } else if (!(await unlock(oldPass))) return false;
+  const heldKey = vaultKey;
   const salt = vault.newSalt();
   const key = await vault.deriveKey(newPass, salt, vault.KDF);
   const check = await vault.encrypt(CHECK_MARKER, key);
-  const profileEnv = await vault.encrypt(profile, key);
-  const employerEnv = await vault.encrypt(employer, key);
+  let seq, profileEnv, employerEnv;
+  do {
+    // A lock empties the cache; encrypting it would erase the data.
+    if (vaultKey !== heldKey) throw new Error("Locked during the passphrase change; nothing was changed");
+    seq = saves;
+    profileEnv = await vault.encrypt(cache.profile ?? blankProfile(), key);
+    employerEnv = await vault.encrypt(cache.employer ?? blankEmployer(), key);
+  } while (seq !== saves || vaultKey !== heldKey);
   const meta = JSON.stringify({ v: 1, kdf: { ...vault.KDF, salt: vault.bytesToB64(salt) }, check });
   const snap = snapshot([VAULT_KEY, PROFILE_KEY, EMPLOYER_KEY]);
   try {
@@ -355,11 +395,9 @@ export async function changePassphrase(oldPass, newPass) {
     localStorage.setItem(EMPLOYER_KEY, envelopeJson(employerEnv));
   } catch (e) {
     restore(snap);
-    vaultKey = prevKey;
-    cache.profile = prevCache.profile;
-    cache.employer = prevCache.employer;
     throw e;
   }
+  epoch++;
   vaultKey = key;
   return true;
 }

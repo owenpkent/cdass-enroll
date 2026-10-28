@@ -145,4 +145,66 @@ assert.equal(await store.importAll(JSON.stringify({ employer: { memberName: "Imp
 assert.equal(store.loadEmployer().memberName, "Imp");
 ok("save results and import validation");
 
+// Hold the (skip+1)th call of a WebCrypto method open, so a test can act inside
+// the async window it creates. One-shot: later calls go straight through.
+function gate(method, skip = 0) {
+  const subtle = crypto.subtle;
+  let hit, release;
+  const reached = new Promise((r) => (hit = r));
+  const open = new Promise((r) => (release = r));
+  subtle[method] = async function (...args) {
+    if (skip-- > 0) return Object.getPrototypeOf(subtle)[method].apply(subtle, args);
+    delete subtle[method];
+    hit();
+    await open;
+    return subtle[method](...args);
+  };
+  return { reached, release };
+}
+
+// 13. Locking while an autosave is encrypting does not drop it: the stored
+// vault's key did not change, so the ciphertext is still readable.
+await store.enableEncryption(PASS);
+await store.saveEmployer({ memberName: "Before" });
+let g = gate("encrypt");
+const inFlight = store.saveEmployer({ memberName: "Last edit" });
+await g.reached;
+store.lock();
+g.release();
+assert.equal(await inFlight, true, "an accepted save finishes after a lock");
+assert.equal(await store.unlock(PASS), true);
+assert.equal(store.loadEmployer().memberName, "Last edit");
+ok("lock keeps an in-flight autosave");
+
+// 14. Edits made while the passphrase changes survive the commit, whether
+// they land during the new key's derivation or while the envelopes encrypt.
+const ui = store.loadEmployer(); // the form's object, as main.js holds it
+ui.memberName = "Before";
+await store.saveEmployer(ui);
+g = gate("importKey", 1); // call 0 verifies the old passphrase; 1 derives the new key
+let changing = store.changePassphrase(PASS, NEWPASS);
+await g.reached;
+ui.memberName = "During derive";
+assert.equal(await store.saveEmployer(ui), true);
+g.release();
+assert.equal(await changing, true);
+await store.flushWrites();
+store.lock();
+assert.equal(await store.unlock(NEWPASS), true);
+assert.equal(store.loadEmployer().memberName, "During derive", "rekey kept the edit made while deriving");
+const ui2 = store.loadEmployer();
+await store.saveEmployer(ui2);
+g = gate("encrypt", 2); // check marker, profile, then hold the employer envelope
+changing = store.changePassphrase(NEWPASS, PASS);
+await g.reached;
+ui2.memberName = "During encrypt";
+store.saveEmployer(ui2);
+g.release();
+assert.equal(await changing, true);
+await store.flushWrites();
+store.lock();
+assert.equal(await store.unlock(PASS), true);
+assert.equal(store.loadEmployer().memberName, "During encrypt", "rekey kept the latest edit");
+ok("passphrase change keeps edits made while it runs");
+
 console.log(`\nvault.test: ${pass} checks passed`);
