@@ -207,4 +207,20 @@ assert.equal(await store.unlock(PASS), true);
 assert.equal(store.loadEmployer().memberName, "During encrypt", "rekey kept the latest edit");
 ok("passphrase change keeps edits made while it runs");
 
+// 15. Locking while the old passphrase is being verified aborts the change
+// instead of re-encrypting the emptied cache as blank records.
+await store.saveProfile({ ...store.loadProfile(), firstName: "Jane" });
+await store.flushWrites();
+g = gate("importKey", 0); // call 0 verifies the old passphrase
+changing = store.changePassphrase(PASS, NEWPASS);
+await g.reached;
+store.lock();
+g.release();
+await assert.rejects(changing, /Locked/);
+assert.equal(await store.unlock(NEWPASS), false, "new passphrase must not have taken effect");
+assert.equal(await store.unlock(PASS), true, "old passphrase still works");
+assert.equal(store.loadProfile().firstName, "Jane");
+assert.equal(store.loadEmployer().memberName, "During encrypt");
+ok("lock during verification aborts the passphrase change");
+
 console.log(`\nvault.test: ${pass} checks passed`);

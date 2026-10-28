@@ -370,19 +370,25 @@ export async function disableEncryption() {
  */
 export async function changePassphrase(oldPass, newPass) {
   await flushWrites();
+  const lockedErr = () => new Error("Locked during the passphrase change; nothing was changed");
   if (isUnlocked()) {
     // Verify only: unlocking again would replace the cache with fresh copies
-    // and orphan the objects the form is editing.
+    // and orphan the objects the form is editing. Capture the key first: a
+    // lock during verification empties the cache, and must abort, not
+    // re-encrypt blank records over the real ones.
+    const before = vaultKey;
     if (!(await verifyPassphrase(oldPass))) return false;
+    if (vaultKey !== before) throw lockedErr();
   } else if (!(await unlock(oldPass))) return false;
   const heldKey = vaultKey;
+  if (!heldKey) throw lockedErr();
   const salt = vault.newSalt();
   const key = await vault.deriveKey(newPass, salt, vault.KDF);
   const check = await vault.encrypt(CHECK_MARKER, key);
   let seq, profileEnv, employerEnv;
   do {
     // A lock empties the cache; encrypting it would erase the data.
-    if (vaultKey !== heldKey) throw new Error("Locked during the passphrase change; nothing was changed");
+    if (vaultKey !== heldKey) throw lockedErr();
     seq = saves;
     profileEnv = await vault.encrypt(cache.profile ?? blankProfile(), key);
     employerEnv = await vault.encrypt(cache.employer ?? blankEmployer(), key);
