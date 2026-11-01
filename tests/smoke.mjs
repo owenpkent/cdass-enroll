@@ -11,6 +11,8 @@ if (!globalThis.crypto) globalThis.crypto = { randomUUID };
 import { fillPacket2026 } from "../src/fill/packet2026.js";
 import { fillI9Standalone } from "../src/fill/i9.js";
 import { fillW4 } from "../src/fill/w4.js";
+import { V3_ADDED_FIELDS } from "../src/fill/packet2026.js";
+import { PROFILE, EMPLOYER, OPTS, EXPECTED_PACKET } from "./fixtures/complete-packet.mjs";
 
 let failures = 0;
 function expect(label, cond, detail = "") {
@@ -52,34 +54,10 @@ async function readFields(bytes, names) {
   return out;
 }
 
-// ---- Fill both PDFs ----
-const profile = {
-  first: "Jane", middle: "Marie", last: "Doe", maidenOrPrevious: "Smith",
-  dob: "1986-06-06", ssn: "123456789",
-  street: "1234 Main St", street2: "Apt 2", city: "Denver", state: "CO", zip: "80203",
-  county: "Denver", mailingSame: true,
-  email: "jane@example.com", cellPhone: "303-555-0100", otherPhone: "", allowText: "yes",
-  contactPreference: "email", primaryLanguage: "English", bestContactTimes: "Weekday mornings",
-  directDeposit: true, accountType: "checking",
-  bankName: "First Bank", routing: "102000021", account: "9876543210",
-  paperPayStub: false,
-  pplId: "ATT-001", relationship: "nonrelative", liveIn: "doesNotLive",
-  relationToEmployer: "none", fullTimeStudent: false, primaryJob: true,
-  citizenship: "citizen", uscisNumber: "", workAuthExpiration: "", i94Number: "", foreignPassport: "",
-  dlNumber: "123456789", dlState: "CO", dlExpiration: "2030-09-30", ssnCardPresented: true,
-  passportNumber: "", passportExpiration: "",
-  filingStatus: "single", multipleJobs: true,
-  rateStandardCdass: "20.00", rateEmergencyCdass: "45",
-  childrenCredit: "2000", otherDependentsCredit: "500",
-  otherIncome: "", deductions: "", extraWithholding: "50",
-};
-const employer = {
-  memberFirst: "Owen", memberLast: "Kent", memberPplId: "MEM-001", memberMedicaidId: "A123456",
-  employerFirst: "Owen", employerLast: "Kent", employerTitle: "Employer",
-  businessName: "Owen Kent, Household Employer", businessAddress: "1234 Main St, Denver, CO 80203",
-  ein: "12-3456789",
-};
-const opts = { signatureDate: "2026-06-11", firstDay: "2026-06-15", newService: true };
+// ---- Fill every PDF from the complete-packet fixture ----
+const profile = PROFILE;
+const employer = EMPLOYER;
+const opts = OPTS;
 
 mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
 
@@ -93,13 +71,16 @@ writeFileSync(new URL("./out/packet2026-filled.pdf", import.meta.url), p26);
 expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
 
 // The output must stay an exact, editable copy of the packet: same pages, same
-// live form fields (not flattened), just with values filled in.
+// live form fields (not flattened), just with values filled in. ADDED counts the
+// fields the filler adds: the page 9 mailing State split off its shared field,
+// and the V.2 fields V.3 dropped (text-me boxes, employer printed name).
+const ADDED = 1 + V3_ADDED_FIELDS.length;
 {
   const tmpl = await PDFDocument.load(packet2026Src);
   const out = await PDFDocument.load(p26);
   expect("packet output keeps every page (exact copy)", out.getPageCount() === tmpl.getPageCount(), `${out.getPageCount()} vs ${tmpl.getPageCount()}`);
   const nOut = out.getForm().getFields().length, nTmpl = tmpl.getForm().getFields().length;
-  expect("packet fields stay editable (not flattened)", nOut === nTmpl + 1 && nOut > 0, `${nOut} vs ${nTmpl} (+1: page 8 mailing State split off its shared field)`);
+  expect("packet fields stay editable (not flattened)", nOut === nTmpl + ADDED && nOut > 0, `${nOut} vs ${nTmpl} (+${ADDED}: page 9 mailing State split off its shared field, plus the fields V.3 dropped)`);
 }
 
 // An uploaded employer signature must overlay without changing pages or fields.
@@ -110,45 +91,20 @@ expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
   const tmpl = await PDFDocument.load(packet2026Src);
   expect(
     "signed packet keeps pages and fields (stays an exact editable copy)",
-    out.getPageCount() === tmpl.getPageCount() && out.getForm().getFields().length === tmpl.getForm().getFields().length + 1,
+    out.getPageCount() === tmpl.getPageCount() && out.getForm().getFields().length === tmpl.getForm().getFields().length + ADDED,
     `${out.getPageCount()} pages / ${out.getForm().getFields().length} fields`
   );
 }
 
 // Values must actually land in the named boxes. Structural checks above pass
-// even when every mapped name has drifted, so assert the real content too.
+// even when every mapped name has drifted, so check every field the fixture
+// lists, blanks included.
 {
-  const f = await readFields(p26, [
-    "Member Name: first and last",
-    "Attendant Name: first, middle and last",
-    "Attendant date of birth",
-    "Attendant Social Security Number",
-    "Attendant physical address",
-    "Attendant email",
-    "Bank or money app name",
-    "Routing number 1",
-    "Routing number 9",
-    "CDASS Standard Rate",
-    "CDASS Emergency Rate",
-    "NonRelative",
-    "Direct Deposit to Bank Account or Third Party Money App",
-    "Checking Account",
-    "List B Document Number 1",
-    "Last Name (Family Name)",
-    "CB_1",
-    "Last Name First Name and Title of Employer or Authorized Representative",
-  ]);
-  expect("packet: member and attendant names land", f["Member Name: first and last"] === "Owen Kent" && f["Attendant Name: first, middle and last"] === "Jane Marie Doe", JSON.stringify(f));
-  expect("packet: DOB and SSN are formatted", f["Attendant date of birth"] === "06/06/1986" && f["Attendant Social Security Number"] === "123-45-6789", JSON.stringify(f));
-  expect("packet: contact and bank land", f["Attendant email"] === "jane@example.com" && f["Bank or money app name"] === "First Bank", JSON.stringify(f));
-  expect("packet: routing spreads one digit per box", f["Routing number 1"] === "1" && f["Routing number 9"] === "1", JSON.stringify(f));
-  expect("packet: rates land", f["CDASS Standard Rate"] === "20.00" && f["CDASS Emergency Rate"] === "45", JSON.stringify(f));
-  expect("packet: relationship and payment boxes check", f["NonRelative"] === true && f["Direct Deposit to Bank Account or Third Party Money App"] === true && f["Checking Account"] === true, JSON.stringify(f));
-  expect("packet: embedded I-9 fills (List B + citizenship)", f["Last Name (Family Name)"] === "Doe" && f["List B Document Number 1"] === "123456789" && f["CB_1"] === true, JSON.stringify(f));
-  // I-9 Section 2 signer line is "Last, First, Title" of the employer (the Member).
-  // With no employer name it silently degrades to just the title ("Employer"), an
-  // incomplete form PPL bounces, so assert the name actually lands.
-  expect("packet: I-9 Section 2 names the employer, not just the title", f["Last Name First Name and Title of Employer or Authorized Representative"] === "Kent, Owen, Employer", JSON.stringify(f));
+  const f = await readFields(p26, Object.keys(EXPECTED_PACKET));
+  const wrong = Object.entries(EXPECTED_PACKET)
+    .filter(([name, want]) => f[name] !== want)
+    .map(([name, want]) => `${name}: want ${JSON.stringify(want)}, got ${JSON.stringify(f[name])}`);
+  expect(`packet: all ${Object.keys(EXPECTED_PACKET).length} fixture fields match`, wrong.length === 0, wrong.join(" | "));
 }
 
 // The rate belongs in exactly one of the three tables on page 10, chosen by the
@@ -270,6 +226,46 @@ expect("standalone I-9 filled and saved", i9Bytes.length > 50000, String(i9Bytes
     attestations.every((k) => !(k in back.profile)),
     JSON.stringify(Object.keys(back.profile))
   );
+
+  // Packets filled before the V.3 revision still import. A V.2-shaped AcroForm
+  // (its descriptive page 2 names) built here stands in for an old packet.
+  {
+    const old = await PDFDocument.create();
+    const page = old.addPage();
+    const form = old.getForm();
+    let y = 10;
+    const put = (name, value) => {
+      const t = form.createTextField(name);
+      t.addToPage(page, { x: 10, y: (y += 12), width: 100, height: 10 });
+      t.setText(value);
+    };
+    const tick = (name) => {
+      const c = form.createCheckBox(name);
+      c.addToPage(page, { x: 120, y: (y += 12), width: 8, height: 8 });
+      c.check();
+    };
+    put("Attendant Name: first, middle and last", "Jane Marie Doe");
+    put("Attendant date of birth", "06/06/1986");
+    put("Attendant Social Security Number", "123-45-6789");
+    put("Attendant physical address, not PO Box", "1234 Main St");
+    put("Attendant cell phone", "303-555-0100");
+    put("Member Name: first and last", "Owen Kent");
+    put("First Name Given Name", "Jane");
+    put("Last Name (Family Name)", "Doe");
+    put("Bank or money app name", "First Bank");
+    put("CDASS Standard Rate", "$20.00");
+    tick("Parent");
+    tick("The attendant prefers to be contacted by cell phone");
+    tick("Check the box if the address where you live is the same as your mailing address");
+    const v2 = await readFilledPacket(await old.save());
+    const want = {
+      first: "Jane", middle: "Marie", last: "Doe", dob: "1986-06-06", ssn: "123456789",
+      street: "1234 Main St", cellPhone: "303-555-0100", relationship: "parent",
+      contactPreference: "cell", mailingSame: true, bankName: "First Bank", rateStandardCdass: "20.00",
+    };
+    const off = Object.entries(want).filter(([k, v]) => v2.profile[k] !== v).map(([k, v]) => `${k}: want ${v}, got ${v2.profile[k]}`);
+    expect("import: a packet filled from the July 2025 (V.2) revision still reads", off.length === 0 && v2.employer.memberFirst === "Owen", off.join("; "));
+  }
 
   let rejected = false;
   try {

@@ -32,7 +32,7 @@ template revision renamed it; see "When a form is revised" in
 
 **A date box near a signature is blank**
 
-Some are intentional. The 2026 packet's Direct Deposit date (page 9) shares a PDF
+Some are intentional. The 2026 packet's Direct Deposit date (page 10) shares a PDF
 field with the EVV vendor date, so it is left for hand-dating. Signature
 fields are never filled by design.
 

@@ -491,4 +491,4 @@ already built.
 | Output | template load, AcroForm fill without flattening, local download |
 | Persistence and privacy | `src/store.js` (local storage, clear-on-start, scrub, seed, export/import) |
 | UI | `src/main.js` (single-page enter, review, generate) |
-| Verification | `tests/smoke.mjs` (fills real templates, asserts exact editable output); `e2e/` Playwright UI tests (the page itself, accessibility, zero off-machine requests) |
+| Verification | `tests/smoke.mjs` (fills real templates from the shared fixture `tests/fixtures/complete-packet.mjs`, asserts exact editable output); `e2e/` Playwright UI tests (the page itself, accessibility, zero off-machine requests) |

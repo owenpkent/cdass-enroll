@@ -4,7 +4,7 @@ A local-only web app for filling out Colorado CDASS attendant enrollment
 paperwork. Built for household employers who hire their own attendants
 through Public Partnerships LLC (PPL), the program's fiscal employer agent.
 
-Enrolling one new attendant means a 28-page PPL packet plus an IRS W-4:
+Enrolling one new attendant means a 29-page PPL packet plus an IRS W-4:
 name, address, SSN, and date of birth copied by hand half a dozen times.
 This app asks for everything once, typed by hand, then fills every form
 in one click.
@@ -122,7 +122,9 @@ python run.py install  # npm install only
 ```
 
 The smoke test writes filled PDFs to `tests/out/` (gitignored) so mapping
-changes can be spot-checked visually.
+changes can be spot-checked visually. It fills the packet from the shared
+fictional fixture `tests/fixtures/complete-packet.mjs` and checks 109 field
+values against it; the browser tests type the same profile in by hand.
 
 The browser UI tests (`npx playwright test`, `npm run test:e2e`, or
 `python run.py e2e`) run the production build with `vite preview` on

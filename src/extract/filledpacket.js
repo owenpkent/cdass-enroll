@@ -4,6 +4,10 @@
 // already checked and signed. Point it at last year's packet and the attendant's
 // details come back exactly.
 //
+// It reads both revisions of the packet: the current one (V.3 enrollment form,
+// page 2 fields named "TextN"/"Check BoxN") and the July 2025 one (V.2, with
+// descriptive names), so packets filled before the revision still import.
+//
 // What it will not import, on purpose: anything the packet phrases as a
 // first-person attestation. The tax-exemption statements ("I am not the spouse,
 // parent, or child of the employer"), the under-18 statements, the EVV live-in
@@ -16,7 +20,7 @@
 // Values are returned for review, never trusted: main.js flashes each one yellow.
 
 import { PDFDocument } from "pdf-lib";
-import { PACKET2026_TEXT, RATE_TABLE } from "../fill/packet2026.js";
+import { PACKET2026_TEXT, PAGE2, RATE_TABLE, TEXT_ME_YES, TEXT_ME_NO } from "../fill/packet2026.js";
 import { normalizeMoney } from "../schema.js";
 
 const text = (form, name) => {
@@ -75,14 +79,16 @@ const splitName = (full) => {
  */
 export async function readFilledPacket(bytes) {
   const form = (await PDFDocument.load(bytes)).getForm();
+  const has = (name) => !!form.getFieldMaybe(name);
 
-  // Probe a field only this template has, so an unrelated PDF fails loudly
-  // instead of importing an empty profile over good data.
-  try {
-    form.getTextField("Attendant Name: first, middle and last");
-  } catch {
-    throw new Error("This is not a CO CDASS 2026 attendant packet.");
-  }
+  // Probe fields only this packet has, so an unrelated PDF fails loudly instead
+  // of importing an empty profile over good data. "Text4" alone is too generic,
+  // so V.3 also needs the packet's own direct-deposit and rate fields.
+  const v2 = has("Attendant Name: first, middle and last");
+  const v3 = !v2 && has(PAGE2.fullName) && has("Bank or money app name") && has("CDASS Standard Rate");
+  if (!v2 && !v3) throw new Error("This is not a CO CDASS 2026 attendant packet.");
+  // The page 2 field name for this revision.
+  const pg2 = (v3Name, v2Name) => (v3 ? v3Name : v2Name);
 
   const profile = {};
   const employer = {};
@@ -92,7 +98,7 @@ export async function readFilledPacket(bytes) {
 
   // ---- Everything that maps to a single key, straight from the shared table ----
   for (const f of PACKET2026_TEXT) {
-    const raw = text(form, f.field);
+    const raw = text(form, f.v2 ? pg2(f.field, f.v2) : f.field);
     put(f.on === "emp" ? employer : profile, f.key, f.from ? f.from(raw) : raw);
   }
 
@@ -108,13 +114,13 @@ export async function readFilledPacket(bytes) {
   // the whole name. With first and last known from the I-9's own boxes, whatever
   // sits between them in the composite is the full middle name, which recovers
   // "Marie" instead of "M" without having to guess at word boundaries.
-  const full = text(form, "Attendant Name: first, middle and last");
+  const full = text(form, pg2(PAGE2.fullName, "Attendant Name: first, middle and last"));
   if (full && profile.first && profile.last && full.startsWith(profile.first) && full.endsWith(profile.last)) {
     const middle = full.slice(profile.first.length, full.length - profile.last.length).trim();
     if (middle) profile.middle = middle;
   }
 
-  const member = splitName(text(form, "Member Name: first and last"));
+  const member = splitName(text(form, pg2(PAGE2.memberName, "Member Name: first and last")));
   if (member) {
     put(employer, "memberFirst", member.first);
     put(employer, "memberLast", member.last);
@@ -130,33 +136,35 @@ export async function readFilledPacket(bytes) {
   // employer to categorise the attendant, it does not ask the attendant to swear
   // to it. The page-11 tax statements are the attestation, and they stay out.
   put(profile, "relationship", pick(form, [
-    ["Spouse", "spouse"],
-    ["Parent", "parent"],
-    ["Other Relative", "relative"],
-    ["NonRelative", "nonrelative"],
+    [pg2(PAGE2.spouse, "Spouse"), "spouse"],
+    [pg2(PAGE2.parent, "Parent"), "parent"],
+    [pg2(PAGE2.relative, "Other Relative"), "relative"],
+    [pg2(PAGE2.nonrelative, "NonRelative"), "nonrelative"],
   ]));
 
   // ---- Contact ----
   put(profile, "contactPreference", pick(form, [
-    ["The attendant prefers to be contacted by email", "email"],
-    ["The attendant prefers to be contacted by cell phone", "cell"],
-    ["The attendant prefers to be contacted by home phone", "home"],
-    ["The attendant prefers to be contacted by mail", "mail"],
+    [pg2(PAGE2.prefEmail, "The attendant prefers to be contacted by email"), "email"],
+    [pg2(PAGE2.prefCell, "The attendant prefers to be contacted by cell phone"), "cell"],
+    [pg2(PAGE2.prefHome, "The attendant prefers to be contacted by home phone"), "home"],
+    [pg2(PAGE2.prefMail, "The attendant prefers to be contacted by mail"), "mail"],
   ]));
+  // Same names in both revisions: V.3 lost these boxes and the filler recreates
+  // them under the V.2 names.
   put(profile, "allowText", pick(form, [
-    ["Do you want PPL to text you: Yes", "yes"],
-    ["Do you want PPL to text you: No", "no"],
+    [TEXT_ME_YES, "yes"],
+    [TEXT_ME_NO, "no"],
   ]));
 
   // ---- Addresses ----
   const sameBox = "Check the box if the address where you live is the same as your mailing address";
-  profile.mailingSame = checked(form, sameBox);
+  profile.mailingSame = checked(form, pg2(PAGE2.mailingSame, sameBox));
   if (!profile.mailingSame) {
-    put(profile, "mailStreet", text(form, "Attendant mailing address not PO Box"));
-    put(profile, "mailStreet2", text(form, "Attendant mailing address 2 Apt Ste or other"));
-    put(profile, "mailCity", text(form, "Attendant mailing address city"));
-    put(profile, "mailState", text(form, "Attendant mailing address State"));
-    put(profile, "mailZip", text(form, "Attendant mailing address Zip Code"));
+    put(profile, "mailStreet", text(form, pg2(PAGE2.mailStreet, "Attendant mailing address not PO Box")));
+    put(profile, "mailStreet2", text(form, pg2(PAGE2.mailStreet2, "Attendant mailing address 2 Apt Ste or other")));
+    put(profile, "mailCity", text(form, pg2(PAGE2.mailCity, "Attendant mailing address city")));
+    put(profile, "mailState", text(form, pg2(PAGE2.mailState, "Attendant mailing address State")));
+    put(profile, "mailZip", text(form, pg2(PAGE2.mailZip, "Attendant mailing address Zip Code")));
   }
 
   // ---- Payment ----
@@ -175,7 +183,7 @@ export async function readFilledPacket(bytes) {
   profile.paperPayStub = checked(form, "Send my pay stub in the mail");
 
   // ---- Rates ----
-  // Page 10 has three parallel rate tables and the rate sits in exactly one, so
+  // The rates page has three parallel rate tables and the rate sits in exactly one, so
   // whichever table carries a value also tells us the Member's program.
   for (const [program, t] of Object.entries(RATE_TABLE)) {
     const standard = text(form, t.standard);

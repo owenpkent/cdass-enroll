@@ -8,22 +8,63 @@ into the original PDFs, and the revision workflow.
 
 ## CO-CDASS-Attendant-Packet-2026 (current): `src/fill/packet2026.js`
 
-Source: "CO-CDASS-Attendant-Packet-2026-CFC-and-Waiver" from the PPL program
-page. 28 pages, 272 fields, descriptive field names (a full rebuild compared
-to 2025; nothing carried over except the embedded I-9).
+Source: "CO-CDASS-Attendant-Packet-2026-CFC-and-Waiver-Update" from the PPL
+program page (PDF ModDate 2026-07-02). 29 pages, 265 template fields. The
+Attendant Enrollment and Agreement Form is V.3, June 2026 (V.2, July 2025, was
+6 pages); everything after it is unchanged but one page later. Most names are
+descriptive; V.3 page 2 is the exception (below).
 
 What gets filled:
 
 | Pages | Form | Filled from |
 | --- | --- | --- |
-| 2-7 | Attendant Enrollment and Agreement | name, DOB, SSN, addresses, contact, relationship to Member, printed names, signature dates |
-| 8-9 | Direct Deposit | bank info as one digit per box; paper-check address block when direct deposit is off |
-| 10 | Services and Rates | new-service vs rate-change, CDASS standard + emergency rate into the table the Member's program selects, signature dates |
-| 11 | Tax Exemptions | relation-to-employer (defaults to "not a relative") and age-gated attestations |
-| 12-17 | EVV Attestation of Exemption | six printed pages, but fillable fields only on 13-15; filled only when the profile marks the attendant as live-in |
-| 19-22 | USCIS I-9 | Section 1 + Section 2 documents (via `src/fill/i9.js`) |
+| 2-8 | Attendant Enrollment and Agreement (V.3) | name, DOB, SSN, addresses, contact, relationship to Member, printed names, signature dates |
+| 9-10 | Direct Deposit | bank info as one digit per box; paper-check address block when direct deposit is off |
+| 11 | Services and Rates | new-service vs rate-change, CDASS standard + emergency rate into the table the Member's program selects, signature dates |
+| 12 | Tax Exemptions | relation-to-employer (defaults to "not a relative") and age-gated attestations |
+| 13-18 | EVV Attestation of Exemption | six printed pages, but fillable fields only on 14-16; filled only when the profile marks the attendant as live-in |
+| 20-23 | USCIS I-9 | Section 1 + Section 2 documents (via `src/fill/i9.js`) |
 
-The employer signature lines on pages 7, 10, 11 have no form field, so when
+### V.3 page 2 positional names
+
+V.3 page 2 lost its descriptive field names; they are `Text1`..`Text24` and
+`Check Box25`..`Check Box33`, mapped by position (the `PAGE2` table in
+`packet2026.js`; each `PACKET2026_TEXT` entry also carries `v2:`, the V.2 name,
+which the previous-packet importer uses). Diff a new template against this map,
+not against names.
+
+| V.3 name | What it is | V.2 name |
+| --- | --- | --- |
+| `Text1` | Employer Name (new on page 2) | none |
+| `Text2` | Member Name | `Member Name: first and last` |
+| `Text3` | Member PPL ID | `Member PPL ID` |
+| `Text4` | Attendant full name (first, middle, last) | `Attendant Name: first, middle and last` |
+| `Text5` | Maiden or previous name | `Attendant maiden or previous name` |
+| `Text6` | Date of birth | `Attendant date of birth` |
+| `Text7` | SSN | `Attendant Social Security Number` |
+| `Text8`-`Text13` | Physical address: street, Apt/Ste, city, state, county (`Text12`), ZIP (`Text13`) | `Attendant physical address ...` |
+| `Text14`-`Text18` | Mailing address: street, Apt/Ste, city, state, ZIP | `Attendant mailing address ...` (five fields) |
+| `Text19` | Mailing county (left blank, no profile key) | `Attendant mailing address county` (also unfilled) |
+| `Text20`-`Text24` | Email, cell phone, home/other phone, primary language, best contact times | `Attendant email` ... `Best contact times for the attendant` |
+| `Check Box25`-`28` | Preferred contact: email, cell, home, mail | `The attendant prefers to be contacted by ...` |
+| `Check Box29` | Mailing address same as physical | `Check the box if the address where you live is the same as your mailing address` |
+| `Check Box30`-`33` | Relationship: spouse, parent, other relative, non-relative | `Spouse`, `Parent`, `Other Relative`, `NonRelative` |
+
+### Fields V.3 dropped, recreated by the app
+
+V.3 printed the "Do you want PPL to text you" Yes/No boxes as glyphs and removed
+the whole page-8 signature block's fields. `addV3Fields()` recreates them as
+real fields with invisible borders so the output stays fillable and the
+importer and smoke test keep working: the two text-me checkboxes (same V.2
+names) exactly over the printed boxes, `Employer Printed Name: first and last`
+as a new text field, and extra widgets on page 8 for the existing shared fields
+`Attendant signature date`, `Attendant Printed Name: first and last` and
+`Employer signature date` (the last shared with Tax Exemptions page 12, as V.2
+shared it with its page 7). Widgets are 14pt tall so auto-size text fits.
+Output field count = template + 1 (page 9 mailing State split) + 3
+(`V3_ADDED_FIELDS`).
+
+The employer signature lines on pages 8, 11, 12 have no form field, so when
 `emp.signature` (an uploaded PNG data URL) is present it is drawn onto those
 pages and the I-9 Section 2 line as an image overlay. Coordinates are the
 `EMPLOYER_SIGNATURE` table in `packet2026.js`; nudge them there if a signature
@@ -51,7 +92,7 @@ to the line's width and the height shrinks instead. An image lifted out of
 another PDF is the usual offender, since it carries that document's placement box
 with it as padding; crop to the alpha bounding box first.
 
-### The three rate tables (page 10)
+### The three rate tables (page 11)
 
 The rates page carries three tables with parallel field names, and a rate
 belongs in exactly one of them:
@@ -81,21 +122,21 @@ Quirks of the original PDF (not bugs in this app):
   against pdf-lib's `getForm().getFields().map(f => f.getName())` before
   mapping it.
 - **Shared "Date" field.** The attendant signature date on the Direct Deposit
-  page is the same PDF field as the FMS-vendor signature date on the EVV
+  page (10) is the same PDF field as the FMS-vendor signature date on the EVV
   exemption form, so the app leaves it blank. Date it by hand when signing.
 - **Per-digit bank boxes.** Routing/account numbers are 9 and 13 individual
   one-character fields ("Routing number 1".."9", "Account number 1".."13").
 - **EVV exemption City/State/ZIP are shared with the I-9 employee address.**
   Harmless: a live-in attendant's address is the shared residence anyway.
-- **Page 8 "State" is the same PDF field as the I-9 and EVV State.** One
-  field, three widgets (Direct Deposit page 8, EVV page 13, I-9 page 19, the
+- **Page 9 "State" is the same PDF field as the I-9 and EVV State.** One
+  field, three widgets (Direct Deposit page 9, EVV page 14, I-9 page 20, the
   last a dropdown). Writing it for the paper-check mailing address would
-  overwrite the I-9 state, and leaving it alone made the page 8 box show the
+  overwrite the I-9 state, and leaving it alone made the page 9 box show the
   home state beside an out-of-state mailing city/ZIP. `fillPacket2026` calls
-  `splitWidgetToOwnField` (util.js) before `getForm()` to detach the page 8
+  `splitWidgetToOwnField` (util.js) before `getForm()` to detach the page 9
   widget into its own text field, `Payment mailing State`, which is written with
   the mailing state (home state when the mailing address is the same). The
-  other two widgets stay shared. Page 8 `Zip Code` and `City` are separate
+  other two widgets stay shared. Page 9 `Zip Code` and `City` are separate
   fields (the I-9 ones are `ZIP Code` and `City or Town`).
 - **MaxLen boxes.** I-9 `ZIP Code` is MaxLen 6, `USCIS ANumber` 10, `Form I94
   Admission Number` 11, SSN 9. pdf-lib rejects a longer value and the box stays
@@ -173,7 +214,7 @@ Without that flag the W-4 looks empty even though every field is filled.
 
 The I-9 mapping is its own module because the same USCIS build appears in
 two places with identical field names: embedded in the PPL packet (pages
-19-22) and as the standalone `public/forms/i9.pdf` that PPL links (off by
+20-23) and as the standalone `public/forms/i9.pdf` that PPL links (off by
 default under Step 2, for when PPL requests a separate copy). The
 only difference found so far: the standalone's employee State field is a
 dropdown, which `setText` in `util.js` handles transparently.
@@ -217,7 +258,9 @@ smoke test now reads it back on both the embedded and standalone copies.
 4. Watch for shared fields (same name, widgets on multiple pages): filling
    one fills them all, which is sometimes a feature (repeated name headers)
    and sometimes a trap (the 2026 "Date" field above).
-5. Run `node tests/smoke.mjs`, then open the PDFs in `tests/out/` and check
+5. Update the expectations in `tests/fixtures/complete-packet.mjs`
+   (`EXPECTED_PACKET`, field -> value pairs, blanks and unchecked boxes
+   included), then run `node tests/smoke.mjs`, then open the PDFs in `tests/out/` and check
    every page visually.
 
 The smoke test is built around step 3's tolerance being a double-edged sword.
@@ -231,6 +274,12 @@ right page count and byte size. So the test does two things beyond filling:
   formatting, per-digit bank boxes, rate table routing, I-9 List A vs List B/C,
   the I-9 Section 2 employer name, age-gated attestations, the W-4 employer
   block), so a field that resolves but receives the wrong value is caught too.
+
+The fixture is shared: `tests/smoke.mjs` fills the packet from its fictional
+attendant and checks all 109 pairs, and `e2e/enroll.spec.mjs` types the same
+profile into the app and checks the downloaded PDF against the same table, so
+a renamed field or moved page needs one edit there, not two. Smoke also builds
+a synthetic V.2-shaped AcroForm to prove old packets still import.
 
 Keep both when adding a mapping: a new field name with no readback assertion is
 only half covered.

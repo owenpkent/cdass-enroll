@@ -20,6 +20,11 @@ below as 0.1.0, and work since then sits under Unreleased.
   once instead.
 
 #### Added
+- **Shared complete-packet fixture.** `tests/fixtures/complete-packet.mjs` holds one
+  fictional attendant (Jane Doe), Member/employer and generate options, plus
+  `EXPECTED_PACKET`, 109 field -> value pairs (blanks and unchecked boxes included)
+  modeled on a real completed packet. `tests/smoke.mjs` and `e2e/enroll.spec.mjs`
+  both check against it; smoke also proves a synthetic V.2 packet still imports.
 - **Browser UI tests (Playwright + axe).** `e2e/` drives installed Microsoft Edge
   against the production build (`vite preview` on 127.0.0.1:5181) via
   `npx playwright test`, `npm run test:e2e`, or `python run.py e2e`. Every test
@@ -30,6 +35,20 @@ below as 0.1.0, and work since then sits under Unreleased.
   axe WCAG 2.2 AA on each view, and keyboard reach of the import picker.
 
 #### Changed
+- **Packet template moved to PPL's July 2026 revision** ("CFC-and-Waiver-Update",
+  PDF ModDate 2026-07-02): 29 pages, 265 fields. The Attendant Enrollment and
+  Agreement Form is V.3 (June 2026), 7 pages (2-8). Everything after it is
+  unchanged but one page later (Direct Deposit 9-10, Rates 11, Tax Exemptions 12,
+  EVV 13-18, I-9 20-23); signature overlays moved to pages 8, 11, 12, 20.
+- **V.3 page 2 fields are positional.** Names are now `Text1`..`Text24` and
+  `Check Box25`..`33`, mapped by position; `PACKET2026_TEXT` entries carry the V.2
+  name as `v2`. Page 2 also gains an Employer Name field.
+- **Dropped V.3 fields recreated.** The "text you" Yes/No boxes and the page-8
+  signature block have no fields in V.3, so `addV3Fields()` adds invisible-border
+  fields over them (3 new fields plus extra widgets on the shared date and printed
+  name fields). The mailing State split moved from page 8 to page 9.
+- **Previous-packet import reads both revisions**, V.3 and V.2, told apart by probe
+  fields.
 - **Page layout.** "Step 1: Their information" (intro note, then a collapsed
   "Optional: start from a packet you already filled for this person" holding the
   unchanged Previous packet import), the form sections, then "Step 2: Generate the

@@ -44,36 +44,10 @@ export const test = base.extend({
   ],
 });
 
-// The fictional attendant the whole suite types in. Mirrors tests/smoke.mjs.
-export const JANE = {
-  first: "Jane",
-  middle: "Marie",
-  last: "Doe",
-  dob: "1986-06-06",
-  ssn: "123-45-6789",
-  street: "1234 Main St",
-  city: "Denver",
-  state: "CO",
-  zip: "80203",
-  county: "Denver",
-  email: "jane@example.com",
-  cellPhone: "303-555-0100",
-  bankName: "First Bank",
-  routing: "102000021",
-  account: "9876543210",
-  rateStandardCdass: "20.00",
-  dlNumber: "123456789",
-  dlState: "CO",
-  dlExpiration: "2030-09-30",
-};
-
-export const MEMBER = {
-  memberFirst: "Owen",
-  memberLast: "Kent",
-  memberPplId: "MEM-001",
-  employerFirst: "Owen",
-  employerLast: "Kent",
-};
+// The fictional attendant and Member the whole suite types in, shared with
+// tests/smoke.mjs, plus every value the filled packet must carry for them.
+export { PROFILE, EMPLOYER, OPTS, EXPECTED_PACKET } from "../tests/fixtures/complete-packet.mjs";
+import { PROFILE, EMPLOYER } from "../tests/fixtures/complete-packet.mjs";
 
 /** The input, select or checkbox bound to a schema key. */
 export const field = (page, key) => page.locator(`[data-key="${key}"]`);
@@ -101,7 +75,7 @@ export async function openApp(page) {
 }
 
 /** Enter the Member and employer of record under Your details, then return. */
-export async function enterYourDetails(page, values = MEMBER) {
+export async function enterYourDetails(page, values = EMPLOYER) {
   await page.getByRole("button", { name: "⚙ Your details" }).click();
   await fillFields(page, values);
   await page.getByRole("button", { name: "Save details" }).click();
@@ -109,13 +83,9 @@ export async function enterYourDetails(page, values = MEMBER) {
   await page.getByRole("button", { name: "← Back to enrollment" }).click();
 }
 
-/** Enter Jane once: the free-text fields plus the choices the forms need. */
-export async function enterJane(page) {
-  await fillFields(page, JANE);
-  await field(page, "accountType").selectOption("checking");
-  await field(page, "relationship").selectOption("nonrelative");
-  await field(page, "citizenship").selectOption("citizen");
-  await field(page, "ssnCardPresented").check();
+/** Enter the fixture attendant once, every field of them. */
+export async function enterAttendant(page, values = PROFILE) {
+  await fillFields(page, values);
 }
 
 /**
