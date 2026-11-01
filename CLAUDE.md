@@ -51,16 +51,19 @@ CSP in index.html enforces this and should stay.
 - Missing PDF fields degrade to console warnings, never exceptions
 - Checkboxes that assert facts (live-in, under-18, relationship) are only
   checked when profile data unambiguously supports them
-- Signatures are never fabricated. Only the employer signature is placed, from
-  an image the user uploads in Your details (`emp.signature`), overlaid on the
-  employer signature lines. The attendant and all other parties (Member, FMS
-  vendor, HCPF, preparer) sign by hand
-- The signature is standing data, so it outlives the person it was uploaded
-  for. Consent is per packet and lives in the UI, not the fillers:
-  `genOptions.stampSignature` (memory only, false on every launch and every new
-  person) decides, and `generate()` hands the fillers an employer with
-  `signature` blanked when it is off. Fillers stay dumb and draw whatever they
-  are given; keep the decision in `main.js`
+- Signatures are never fabricated: each is made by its own signer in the app
+  (typed in a system handwriting font or drawn, `src/sigpad.js`) or uploaded,
+  and placed only on that signer's lines. Two signers can sign in the app: the
+  employer (`emp.signature`, standing data, overlaid on the employer lines) and
+  the attendant (`state.attendantSignature`, memory only, never saved, dropped
+  for a new person; overlaid on the attendant lines, I-9 Section 1 and W-4
+  Step 5). The Member, FMS vendor, HCPF and any preparer sign by hand
+- Consent is per signature and per packet, and lives in the UI, not the
+  fillers: `genOptions.stampSignature` and `genOptions.stampAttendant` (memory
+  only, false on every launch, every new person, and every new signature)
+  decide. `generate()` blanks `emp.signature` and passes
+  `opts.attendantSignature` as "" when its box is off. Fillers stay dumb and
+  draw whatever they are given; keep the decision in `main.js`
 - Rates print onto a form the attendant signs, so money fields are validated
   (`moneyError` in schema.js) and a bad one blocks Generate. Never round or
   auto-correct an amount: tidying `$18.50` to `18.50` is fine, turning `33.517`

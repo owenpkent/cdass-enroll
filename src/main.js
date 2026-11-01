@@ -16,13 +16,21 @@ import { fillPacket2026 } from "./fill/packet2026.js";
 import { fillI9Standalone } from "./fill/i9.js";
 import { fillW4 } from "./fill/w4.js";
 import { todayIso } from "./fill/util.js";
+import { signatureMaker } from "./sigpad.js";
 
 // This is a one-at-a-time tool: a single person's profile, plus the standing
 // "your details" (member + employer of record) that get reused on every packet.
-// stampSignature lives here, not in the store, so it is false again on every
-// launch: reusing a saved signature is a decision made once per session. Every
-// option is per packet, so a new person gets all of them back at their defaults.
-const newGenOptions = () => ({ signatureDate: todayIso(), firstDay: "", newService: true, stampSignature: false });
+// stampSignature and stampAttendant live here, not in the store, so they are
+// false again on every launch: placing a signature is a decision made per
+// packet. Every option is per packet, so a new person gets all of them back at
+// their defaults.
+const newGenOptions = () => ({
+  signatureDate: todayIso(),
+  firstDay: "",
+  newService: true,
+  stampSignature: false,
+  stampAttendant: false,
+});
 
 const state = {
   profile: blankProfile(),
@@ -31,6 +39,9 @@ const state = {
   // Bumped whenever the person changes (start over, wipe, backup import). An
   // async result captured under an older value belongs to someone else: drop it.
   person: 0,
+  // The attendant's signature, typed or drawn in Step 2. Memory only: it is
+  // never written to storage, and a new person drops it.
+  attendantSignature: "",
   showSettings: false,
   locked: false,
   unlockError: "",
@@ -40,6 +51,7 @@ const state = {
 function newPerson() {
   state.person++;
   state.genOptions = newGenOptions();
+  state.attendantSignature = "";
   state.purgedNote = null;
 }
 
@@ -259,7 +271,8 @@ async function cleanSignatureImage(file) {
   return canvas.toDataURL("image/png");
 }
 
-// Schema "signature" field: upload an image, show a preview, store a PNG data URL.
+// Schema "signature" field: type, draw or upload a signature, show a preview,
+// store a PNG data URL.
 //
 // There is exactly one of these, the employer signature, and it is standing
 // data: uploaded once, reused on every packet. That is also how it ends up on
@@ -281,6 +294,13 @@ function renderSignatureField(f, obj, onChange) {
       caption.style.display = "none";
     }
   };
+  const makerArea = h("div");
+  const accept = (png) => {
+    setEmployerSignature(obj, png);
+    onChange(f.key);
+    makerArea.replaceChildren();
+    show();
+  };
   const fileInp = h("input", {
     type: "file",
     accept: "image/*",
@@ -290,12 +310,7 @@ function renderSignatureField(f, obj, onChange) {
       e.target.value = "";
       if (!file) return;
       try {
-        obj[f.key] = await cleanSignatureImage(file);
-        obj.signatureFor = employerName(obj);
-        obj.signatureUploadedAt = todayIso();
-        state.genOptions.stampSignature = false; // a new image must be re-confirmed
-        onChange(f.key);
-        show();
+        accept(await cleanSignatureImage(file));
       } catch (err) {
         alert("Could not read that image: " + err.message);
       }
@@ -319,11 +334,29 @@ function renderSignatureField(f, obj, onChange) {
     h(
       "div",
       { class: "btnrow" },
+      h(
+        "button",
+        {
+          class: "btn",
+          onclick: () => makerArea.replaceChildren(signatureMaker({ name: employerName(obj), who: "employer signature", onUse: accept })),
+        },
+        "Type or draw"
+      ),
       h("button", { class: "btn", onclick: () => fileInp.click() }, "Upload signature image"),
       h("button", { class: "btn", onclick: clear }, "Clear"),
       fileInp
-    )
+    ),
+    makerArea
   );
+}
+
+// Store a new employer signature with whose it is and when it arrived. Any new
+// signature must be re-confirmed for the packet, so the tick clears.
+function setEmployerSignature(emp, png) {
+  emp.signature = png;
+  emp.signatureFor = employerName(emp);
+  emp.signatureUploadedAt = todayIso();
+  state.genOptions.stampSignature = false;
 }
 
 const employerName = (emp) => [emp.employerFirst, emp.employerLast].filter(Boolean).join(" ");
@@ -331,9 +364,9 @@ const employerName = (emp) => [emp.employerFirst, emp.employerLast].filter(Boole
 /** One line saying where a stored signature came from, for the eye before it. */
 function signatureProvenance(emp) {
   if (!emp.signatureFor)
-    return "Uploaded before this app started recording whose signature it is. Confirm whose it is before stamping it on a packet.";
+    return "Added before this app started recording whose signature it is. Confirm whose it is before stamping it on a packet.";
   const when = emp.signatureUploadedAt ? ` on ${emp.signatureUploadedAt}` : "";
-  return `Uploaded${when} for ${emp.signatureFor}.`;
+  return `Added${when} for ${emp.signatureFor}.`;
 }
 
 // ---------- shell ----------
@@ -471,6 +504,9 @@ function renderMain() {
       // A packet read in is a different person than the one the tick was for.
       state.genOptions.stampSignature = false;
       stampCb.checked = false;
+      state.attendantSignature = "";
+      state.genOptions.stampAttendant = false;
+      renderSignatures();
       const changed = applyImportedFields(got);
       const seeded = applyEmployerIfEmpty(emp);
       const standing = seeded.length ? ` Filled ${seeded.length} empty standing detail${seeded.length === 1 ? "" : "s"}.` : "";
@@ -528,19 +564,47 @@ function renderMain() {
   const newServiceCb = h("input", { type: "checkbox", onchange: (e) => (opts.newService = e.target.checked) });
   newServiceCb.checked = opts.newService;
 
-  // Nothing stamps the saved signature unless this is ticked, and it starts
-  // unticked every session (see state.genOptions), so a signature uploaded for
-  // one packet cannot ride along on the next person's without being looked at.
+  // Nothing stamps a signature unless its own box is ticked, and both start
+  // unticked every session and for every new person (see state.genOptions), so
+  // a signature made for one packet cannot ride along on the next one's.
   const stampCb = h("input", { type: "checkbox", onchange: (e) => (opts.stampSignature = e.target.checked) });
   stampCb.checked = !!opts.stampSignature;
+  const attCb = h("input", { type: "checkbox", onchange: (e) => (opts.stampAttendant = e.target.checked) });
+  attCb.checked = !!opts.stampAttendant;
 
-  function renderStampConfirm() {
+  const signatureArea = h("div");
+  let attendantMaker = null;
+  const attendantName = () => [state.profile.first, state.profile.last].filter(Boolean).join(" ");
+  formArea.addEventListener("input", (e) => {
+    if (e.target.dataset.key === "first" || e.target.dataset.key === "last") attendantMaker?.setName(attendantName());
+  });
+  function renderSignatures() {
+    stampCb.checked = !!opts.stampSignature;
+    attCb.checked = !!opts.stampAttendant;
+    signatureArea.replaceChildren(
+      h("h3", {}, "Employer signature"),
+      renderEmployerSignature(),
+      h("h3", {}, "Attendant signature"),
+      renderAttendantSignature()
+    );
+  }
+
+  function renderEmployerSignature() {
     const emp = state.employer;
     if (!emp.signature)
       return h(
-        "p",
-        { class: "note" },
-        "No signature is on file, so every signature line is left to be signed by hand. Upload one under Your details to stamp the employer lines."
+        "div",
+        {},
+        h("p", { class: "note" }, "No employer signature is on file, so the employer lines are left to sign by hand. Add one here to stamp them; it is saved for your next packets."),
+        signatureMaker({
+          name: employerName(emp),
+          who: "employer signature",
+          onUse: (png) => {
+            setEmployerSignature(emp, png);
+            store.saveEmployer(emp);
+            renderSignatures();
+          },
+        })
       );
     const current = employerName(emp);
     const mismatch = emp.signatureFor && current && emp.signatureFor !== current;
@@ -548,15 +612,65 @@ function renderMain() {
       "div",
       { class: "card" },
       h("label", { class: "check" }, stampCb, "Stamp this signature on the employer signature lines"),
-      h("img", { class: "sigpreview", src: emp.signature, alt: "" }),
+      h("img", { class: "sigpreview", src: emp.signature, alt: "Employer signature on file" }),
       h("p", { class: "note" }, signatureProvenance(emp)),
       mismatch
         ? h(
             "p",
             { class: "status err" },
-            `This signature was uploaded for ${emp.signatureFor}, but the employer of record is now ${current}. Upload the right one under Your details, or leave this unticked and sign by hand.`
+            `This signature was made for ${emp.signatureFor}, but the employer of record is now ${current}. Replace it under Your details, or leave this unticked and sign by hand.`
           )
         : null
+    );
+  }
+
+  // The attendant signs for themselves: make this with them, and tick the box
+  // only with their agreement. It is held for this packet only.
+  function renderAttendantSignature() {
+    const name = attendantName();
+    attendantMaker = null;
+    if (!state.attendantSignature) {
+      attendantMaker = signatureMaker({
+        name,
+        who: "attendant signature",
+        onUse: (png) => {
+          state.attendantSignature = png;
+          opts.stampAttendant = false; // a new signature must be agreed to
+          renderSignatures();
+        },
+      });
+      return h(
+        "div",
+        {},
+        h(
+          "p",
+          { class: "note" },
+          "Optional. With the attendant present, they can type or draw their signature here to have it placed on the attendant signature lines. It is used for this packet only and never saved."
+        ),
+        attendantMaker
+      );
+    }
+    return h(
+      "div",
+      { class: "card" },
+      h("label", { class: "check" }, attCb, `${name || "The attendant"} agrees to sign this packet with this signature`),
+      h("img", { class: "sigpreview", src: state.attendantSignature, alt: "Attendant signature" }),
+      h(
+        "div",
+        { class: "btnrow" },
+        h(
+          "button",
+          {
+            class: "btn",
+            onclick: () => {
+              state.attendantSignature = "";
+              opts.stampAttendant = false;
+              renderSignatures();
+            },
+          },
+          "Remove"
+        )
+      )
     );
   }
 
@@ -570,11 +684,12 @@ function renderMain() {
     const bad = moneyErrors(state.profile);
     if (bad.length) return setGenStatus("err", `${bad[0].label}: ${bad[0].message}`);
     // Everything below awaits, so work from a snapshot: an edit made mid-run
-    // must not land in half the files. The signature is passed only when this
+    // must not land in half the files. Each signature is passed only when this
     // packet was confirmed for it.
     const profile = structuredClone(state.profile);
     const stamp = !!opts.stampSignature;
-    const genOpts = { ...opts, stampSignature: stamp };
+    const attendantSignature = opts.stampAttendant ? state.attendantSignature : "";
+    const genOpts = { ...opts, stampSignature: stamp, attendantSignature };
     const emp = structuredClone(state.employer);
     const hadSignature = !!emp.signature;
     if (!stamp) emp.signature = "";
@@ -595,14 +710,19 @@ function renderMain() {
         const bytes = await fetchTemplate("forms/i9.pdf");
         download(await fillI9Standalone(bytes, profile, emp, genOpts), `${stem}-I9.pdf`);
       }
-      const stamped = hadSignature
+      const employerNote = hadSignature
         ? stamp
           ? ` The employer signature on file for ${emp.signatureFor || "an unrecorded name"} was stamped on the employer lines.`
-          : " No signature was stamped; every signature line is blank."
+          : " The employer signature was not stamped."
         : "";
+      const attendantNote = attendantSignature
+        ? " The attendant's signature was placed on the attendant lines."
+        : state.attendantSignature
+          ? " The attendant's signature was not placed: its box was not ticked."
+          : "";
       setGenStatus(
         "ok",
-        `Done. Files are in your Downloads folder. Review every page, then sign and date by hand where required.${stamped}`
+        `Done. Files are in your Downloads folder. Review every page, then sign and date by hand wherever no signature was placed.${employerNote}${attendantNote}`
       );
       offerScrub();
     } catch (e) {
@@ -661,6 +781,8 @@ function renderMain() {
     );
   }
 
+  renderSignatures();
+
   // ----- assemble the page -----
   if (state.purgedNote) wrap.append(h("p", { class: "note" }, state.purgedNote));
 
@@ -703,15 +825,14 @@ function renderMain() {
       h("label", { class: "check" }, w4Cb, "IRS W-4 withholding (2026 revision, as distributed by PPL)"),
       h("label", { class: "check" }, i9Cb, "Standalone USCIS I-9 (the packet already includes one; only if PPL asks for it separately)"),
       h("label", { class: "check" }, newServiceCb, "Rate form: this is a new service (uncheck for an hourly-rate change)"),
-      h("h3", {}, "Employer signature"),
-      renderStampConfirm(),
+      signatureArea,
       h("div", { class: "btnrow" }, genBtn),
       genStatus,
       afterGen,
       h(
         "p",
         { class: "note" },
-        "A saved signature is stamped on the employer lines only when you tick the box above, and the tick clears every time the app restarts, so it is never applied to a new person unnoticed. The attendant and all other parties sign by hand. The output is an exact, editable copy of the packet, so you can adjust any field in your PDF reader before printing. The packet's rehire page (Supplement B) shares a field with I-9 List A in the original PDF, so if a passport was used, ignore the mirrored title on that page."
+        "A signature is placed only on its own signer's lines and only when its box above is ticked. Both ticks clear every time the app restarts and for every new person, so a signature is never applied unnoticed. The attendant's signature is never saved. Every other party (the Member, PPL, HCPF, a preparer) signs by hand. The output is an exact, editable copy of the packet, so you can adjust any field in your PDF reader before printing. The packet's rehire page (Supplement B) shares a field with I-9 List A in the original PDF, so if a passport was used, ignore the mirrored title on that page."
       )
     ),
     h(

@@ -20,6 +20,15 @@ below as 0.1.0, and work since then sits under Unreleased.
   once instead.
 
 #### Added
+- **Signatures made in the app.** Type a name (drawn in a handwriting font the
+  computer already has; nothing downloaded or bundled) or draw on a pad
+  (`src/sigpad.js`); the result is a transparent PNG cropped to the ink. Step 2
+  gains Employer and Attendant signature sections; Your details gains "Type or
+  draw" beside upload. The attendant signature is memory only, with its own
+  "agrees to sign" tick, and is placed on packet pages 8, 10, 11, 12 and I-9
+  Section 1 (also standalone) and W-4 Step 5. Generate reports which signatures
+  were placed. `tests/smoke.mjs` checks each lands only on its signer's pages;
+  `e2e/signatures.spec.mjs` adds UI coverage (14 UI tests).
 - **Shared complete-packet fixture.** `tests/fixtures/complete-packet.mjs` holds one
   fictional attendant (Jane Doe), Member/employer and generate options, plus
   `EXPECTED_PACKET`, 109 field -> value pairs (blanks and unchecked boxes included)
@@ -35,6 +44,10 @@ below as 0.1.0, and work since then sits under Unreleased.
   axe WCAG 2.2 AA on each view, and keyboard reach of the import picker.
 
 #### Changed
+- **Signature policy.** The attendant no longer signs only by hand: a signature
+  made with them present, and ticked per packet, is placed on their lines. The
+  employer signature can also be made in the app. The Member, FMS vendor, HCPF
+  and preparers still sign by hand, and the EVV caregiver lines stay blank.
 - **Packet template moved to PPL's July 2026 revision** ("CFC-and-Waiver-Update",
   PDF ModDate 2026-07-02): 29 pages, 265 fields. The Attendant Enrollment and
   Agreement Form is V.3 (June 2026), 7 pages (2-8). Everything after it is

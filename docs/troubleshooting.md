@@ -33,24 +33,40 @@ template revision renamed it; see "When a form is revised" in
 **A date box near a signature is blank**
 
 Some are intentional. The 2026 packet's Direct Deposit date (page 10) shares a PDF
-field with the EVV vendor date, so it is left for hand-dating. Signature
-fields are never filled by design.
+field with the EVV vendor date, so it is left for hand-dating. Lines for
+the Member, FMS vendor, HCPF and a preparer are never filled by design.
+
+**The attendant signature is missing from the packet**
+
+It is placed only when the attendant signature was made in Step 2 and its
+**agrees to sign this packet** tick is set; making a new signature clears the
+tick. It is never saved, so a reload, **Start over**, a new person or a
+previous-packet import drops it. The status line after generating says when a
+made signature was left off for want of the tick. The EVV caregiver lines stay
+blank by design.
+
+**A typed signature looks like plain text**
+
+The app draws it in a handwriting font the computer already has (Segoe Script,
+Ink Free, Lucida Handwriting, Brush Script MT) and falls back to the browser's
+generic cursive when none is installed. Nothing is downloaded, so a machine
+without one of those fonts gets a plainer result. Draw it on the pad instead.
 
 **The employer signature is missing from the packet**
 
 It is stamped only when **Stamp this signature on the employer signature lines**
 is ticked in Step 2, and that tick is off again every time the app restarts and
 every time you start a new person. This is deliberate: the signature is standing
-data that outlives the person it was uploaded for, and an unnoticed reuse means a
+data that outlives the person it was made for, and an unnoticed reuse means a
 packet signed by someone who never agreed to sign it. The status line after
 generating says which happened, and the Step 2 box shows the image, whose
-signature it is, and when it was uploaded.
+signature it is, and when it was made.
 
 **Step 2 says the signature was uploaded for someone else**
 
 The employer of record under Your details no longer matches the name recorded
 when the signature was uploaded. Upload the right signature, or leave the box
-unticked and sign the employer lines by hand. A signature saved before the app
+unticked and sign the employer lines by hand, or make a new signature. A signature saved before the app
 recorded provenance says so instead of naming anyone; clear and re-upload it to
 get the name attached.
 

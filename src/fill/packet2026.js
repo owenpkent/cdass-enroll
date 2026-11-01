@@ -139,6 +139,18 @@ const EMPLOYER_SIGNATURE = [
   { page: 19, x: 297, y: 82, w: 185, h: 15 }, // p20 I-9 Signature of Employer or AR
 ];
 
+// Attendant signature placements, used only when the attendant typed or drew a
+// signature in the app and agreed to it for this packet (opts.attendantSignature
+// is "" otherwise). Same rule as the employer lines: on the line, right of the
+// label, clear of the Date box at x 468. I-9 Section 1's box sits under its label.
+const ATTENDANT_SIGNATURE = [
+  { page: 7, x: 150, y: 746, w: 300, h: 22 }, // p8 Attendant Signature
+  { page: 9, x: 150, y: 353, w: 300, h: 22 }, // p10 Direct Deposit Attendant Signature
+  { page: 10, x: 150, y: 96, w: 300, h: 22 }, // p11 Attendant Signature
+  { page: 11, x: 150, y: 103, w: 300, h: 22 }, // p12 Attendant Signature
+  { page: 19, x: 45, y: 417, w: 320, h: 15 }, // p20 I-9 Signature of Employee
+];
+
 export async function fillPacket2026(templateBytes, p, emp, opts) {
   const doc = await PDFDocument.load(templateBytes);
   // Page 9's "State" widget is one field with the I-9 and EVV State widgets, so
@@ -288,6 +300,7 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
 
   form.updateFieldAppearances();
   await overlaySignature(doc, emp.signature, EMPLOYER_SIGNATURE);
+  await overlaySignature(doc, opts.attendantSignature, ATTENDANT_SIGNATURE);
   return doc.save();
 }
 

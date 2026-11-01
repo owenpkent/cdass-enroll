@@ -105,11 +105,14 @@ src/extract/filledpacket.js
                          A filled packet PDF -> profile/employer, by running
                          packet2026's PACKET2026_TEXT table backwards. It reads
                          the AcroForm. Skips every attestation
+src/sigpad.js            Signature maker: type (system handwriting font, nothing
+                         downloaded) or draw on a pad; outputs a transparent PNG
+                         cropped to the ink
 src/fill/util.js         Tolerant pdf-lib helpers (missing field = console
                          warning, not a crash), date/SSN formatting and their
                          inverses, signature image overlay
-src/fill/packet2026.js   Mapping for the current PPL packet (+ employer
-                         signature). Exports PACKET2026_TEXT, the one table both
+src/fill/packet2026.js   Mapping for the current PPL packet (+ employer and
+                         attendant signature overlays). Exports PACKET2026_TEXT, the one table both
                          filling and importing read
 src/fill/i9.js           I-9 Section 1 + 2 (shared by the packet and standalone)
 src/fill/w4.js           W-4 with 2020-2023 vs 2024+ layout detection
@@ -141,12 +144,15 @@ run.py                   Launcher: install-if-needed, dev/test/build/serve
   human. See forms.md.
 - **Standing data needs per-packet consent when it signs something.** The
   employer signature is stored once and reused, which means it outlives the
-  person it was uploaded for and will happily go out on the next one's forms.
-  The fillers stay dumb (they draw whatever `emp.signature` holds); `main.js`
+  person it was made for and will happily go out on the next one's forms.
+  The fillers stay dumb (they draw whatever signature they are given); `main.js`
   owns the decision through `genOptions.stampSignature`, which lives in memory
   only, so it is false again on every launch and every new person, and passes a
   blanked `signature` when it is off. Reuse is the whole point of standing
-  details, but reuse of a signature is a claim about who signed.
+  details, but reuse of a signature is a claim about who signed. The attendant's
+  signature is the stricter case: made with the attendant present, kept in
+  memory only (never stored, dropped by Start over, new person and previous-packet
+  import), with its own tick that clears whenever a new signature is made.
 - **A rate is never auto-corrected.** Money fields validate through
   `moneyError` and a bad one blocks Generate with the field named. Formatting is
   tidied (`$1,234.00` to `1234.00`); the amount never is. Rounding `33.517` to
@@ -169,8 +175,13 @@ run.py                   Launcher: install-if-needed, dev/test/build/serve
   logs a console error or uncaught exception, so the no-network rule is
   checked on every run. `seed.local.json` is answered with 404, so tests only
   ever see the fictional Jane Doe.
-- Coverage: no scan UI exists; type once, generate, and read the packet and W-4
+- `tests/smoke.mjs` also checks each signature lands only on its signer's pages
+  (image count per page against an unsigned fill).
+- Coverage (14 UI tests): no scan UI exists; type once, generate, and read the packet and W-4
   back with pdf-lib; a malformed rate blocks Generate; Your details persist
-  across reload while the attendant does not; the signature is not stamped
-  without the tick; the previous-packet import round trip; axe WCAG 2.2 AA on
+  across reload while the attendant does not; nothing is signed until a
+  signature is made and ticked; the typed attendant name follows Step 1; a typed
+  attendant signature is placed only after its tick (packet pages 8, 10, 11, 12,
+  20 and W-4 page 1); a drawn employer signature is saved across reload while its
+  tick is not; Start over drops the attendant signature; the previous-packet import round trip; axe WCAG 2.2 AA on
   each view; keyboard reach of the import picker.

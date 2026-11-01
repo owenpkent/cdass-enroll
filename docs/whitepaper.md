@@ -70,9 +70,9 @@ carried to any other form.
    and never flattens them. The generated PDF is byte-for-byte the same form,
    same pages, same live fields, with values filled in, so the user can still
    correct any field in a normal PDF reader before printing. Signatures are
-   never fabricated: the app places only a signature image the signer supplies,
-   only onto the packet they confirm it belongs on, and every other party's
-   signature line stays blank.
+   never fabricated: the app places only a signature made for the signer
+   (uploaded, typed or drawn), only onto the packet they confirm it belongs on,
+   and the Member, FMS vendor, HCPF and preparer lines stay blank.
 5. **Conservative correctness.** Checkboxes that assert facts (a live-in
    relationship, an age threshold, a tax status) are only checked when the
    stored data unambiguously supports them. Extracted values are shown for
@@ -397,7 +397,7 @@ CDASS template.
 ## 7. Risk, compliance, and limits
 
 - **The tool assists; a human signs.** It fills and the person reviews, signs by
-  hand, and submits. It does not submit on anyone's behalf. Automated
+  hand wherever a line is still blank, and submits. It does not submit on anyone's behalf. Automated
   submission, if ever added, would need explicit, careful design and consent.
 - **Accuracy and liability.** Conservative filling and verify-everything review
   reduce the chance of a wrong value reaching an official form, but the person
@@ -439,7 +439,8 @@ CDASS template.
   address and yet applying it is a claim that a specific person signed a
   specific document. This tool resolves it by keeping the signature standing but
   making its *use* per-packet, with a confirmation that shows whose it is and
-  resets every session. The general lesson for the pattern: audit standing data
+  resets every session. The attendant's signature, made with them present, is
+  stricter still: memory only, never stored. The general lesson for the pattern: audit standing data
   for anything that asserts rather than describes, and gate the assertion at the
   moment of use rather than trusting the moment of entry.
 - **The likeliest real-world leak is the output, not the app.** A generated PDF

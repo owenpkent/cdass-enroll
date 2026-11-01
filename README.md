@@ -32,9 +32,10 @@ The app is a single page that handles one person at a time:
    defaults to $45). Optionally start from a packet you already filled for
    this person. Review everything.
 3. **Step 2, generate the PDF**: set the dates, confirm whether your saved
-   signature belongs on this packet, click Generate. Filled PDFs land in your
-   Downloads folder.
-4. Print, review every page, sign and date by hand, submit to PPL.
+   signature belongs on this packet, add the attendant's signature if they are
+   with you, click Generate. Filled PDFs land in your Downloads folder.
+4. Print, review every page, sign and date by hand wherever a line is still
+   blank, submit to PPL.
 
 The full walkthrough, including what each form needs, is in
 [docs/usage.md](docs/usage.md).
@@ -47,12 +48,16 @@ The full walkthrough, including what each form needs, is in
 | IRS W-4 (2026 revision, the file PPL links) | `public/forms/w4.pdf` | Auto-detects the 2020-2023 vs 2024+ field layouts, so a future-year W-4 dropped over this file keeps working |
 | Standalone USCIS I-9 | `public/forms/i9.pdf` | Off by default; the packet already embeds an I-9, so use this only if PPL asks for one separately |
 
-Signatures are never fabricated. The app places only your employer signature,
-from an image you upload in Your details, on the employer lines; the attendant
-and everyone else sign by hand. A saved signature is standing data that outlives
-the person it was uploaded for, so it is stamped only when you tick the box in
-Step 2 confirming it belongs on *this* packet, and that tick clears on every
-restart and every new person. The app also deliberately leaves a checkbox
+Signatures are never fabricated. The app places only a signature someone made
+for that signer: the employer's (typed or drawn in the app, or uploaded) on the
+employer lines, and the attendant's (typed or drawn with the attendant present)
+on the attendant lines. Typed signatures use a handwriting font the computer
+already has; nothing is downloaded. The Member, the FMS vendor, HCPF and any
+preparer always sign by hand. Signatures are per-packet consent: the saved
+employer signature is stamped only when you tick the box in Step 2 confirming it
+belongs on *this* packet, and that tick clears on every restart and every new
+person. The attendant's signature is never saved: it lives in memory, needs its
+own "agrees to sign" tick, and is dropped by Start over. The app also deliberately leaves a checkbox
 blank wherever an attestation is ambiguous (details in
 [docs/forms.md](docs/forms.md)).
 
@@ -124,14 +129,15 @@ python run.py install  # npm install only
 The smoke test writes filled PDFs to `tests/out/` (gitignored) so mapping
 changes can be spot-checked visually. It fills the packet from the shared
 fictional fixture `tests/fixtures/complete-packet.mjs` and checks 109 field
-values against it; the browser tests type the same profile in by hand.
+values against it, and that each signature lands only on its signer's pages; the
+browser tests (14) type the same profile in by hand.
 
 The browser UI tests (`npx playwright test`, `npm run test:e2e`, or
 `python run.py e2e`) run the production build with `vite preview` on
 127.0.0.1:5181 and drive installed Microsoft Edge (override with
 `CDASS_UI_BROWSER`). They cover typing the details once and reading the
-generated packet and W-4 back, rate validation, persistence, the signature
-consent box, the previous-packet round trip, and axe WCAG 2.2 AA checks on each
+generated packet and W-4 back, rate validation, persistence, signature making
+and consent (employer and attendant), the previous-packet round trip, and axe WCAG 2.2 AA checks on each
 view. Every test fails if any request leaves 127.0.0.1 or the console reports an
 error. Output goes to `test-results/` and `playwright-report/` (gitignored).
 

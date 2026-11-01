@@ -97,6 +97,11 @@ label.field input:disabled, label.field select:disabled { background: #eef1f4; c
 
 .sigfield { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
 .sigpreview { max-width: 320px; max-height: 90px; border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 4px; }
+.sigmaker { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.4rem 0 0.8rem; }
+.sigmaker [aria-pressed="true"] { border-color: var(--accent-text); color: var(--accent-text); }
+.sigpane { display: flex; flex-direction: column; gap: 0.4rem; }
+.sigcanvas { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.sigpad { cursor: crosshair; touch-action: none; }
 
 .importrow { margin-top: 0.4rem; }
 .importrow summary { cursor: pointer; font-size: 0.9rem; color: var(--accent-text); }

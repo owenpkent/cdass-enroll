@@ -86,12 +86,6 @@ test("Your details are kept across a restart; the attendant is not", async ({ pa
   await expect(field(page, "employerLast")).toHaveValue("Kent");
 });
 
-test("the signature is never stamped without a fresh tick", async ({ page }) => {
-  await openApp(page);
-  await expect(page.getByText(/No signature is on file/)).toBeVisible();
-  await expect(page.getByLabel("Stamp this signature on the employer signature lines")).toHaveCount(0);
-});
-
 test("a packet filled earlier reads back in after Start over", async ({ page }) => {
   await openApp(page);
   await enterYourDetails(page);

@@ -19,7 +19,8 @@ It is a design and reasoning aid, not a compliance attestation.
 | Asset | Where it lives today | Sensitivity |
 | --- | --- | --- |
 | Person profile (name, DOB, address, **SSN**, bank/income) | one `localStorage` key ([src/store.js](../src/store.js)); plaintext by default, an AES-GCM envelope when the passphrase option is on | High |
-| Employer details | same `localStorage` store; plaintext or encrypted with the profile | Medium |
+| Employer details, including the employer signature image | same `localStorage` store; plaintext or encrypted with the profile | Medium |
+| Attendant signature (typed or drawn in Step 2) | JS memory only; never written to storage, dropped by Start over, a new person or a previous-packet import. It does end up in the generated PDF | Medium |
 | Seed file | `public/seed.local.json`, plaintext on disk, gitignored, auto-seeds empty settings at startup. Served by the dev server only: `vite build` strips it from `dist/` (see [vite.config.js](../vite.config.js)), so it is not in the production build or `run.py serve` | High |
 | Generated PDFs | Downloads folder, plaintext, every SSN the form asked for | High |
 | Derived key + decrypted profile (when encryption is on and unlocked) | JS heap while the app is open; can reach swap/hibernation | High |

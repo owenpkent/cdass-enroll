@@ -16,6 +16,8 @@ export async function fillI9Standalone(templateBytes, p, emp, opts) {
   form.updateFieldAppearances();
   // Employer signs Section 2 (Signature of Employer or AR), page 1 here.
   await overlaySignature(doc, emp.signature, [{ page: 0, x: 297, y: 82, w: 185, h: 15 }]);
+  // The employee signs Section 1, only with a signature they agreed to here.
+  await overlaySignature(doc, opts.attendantSignature, [{ page: 0, x: 45, y: 417, w: 320, h: 15 }]);
   return doc.save();
 }
 
