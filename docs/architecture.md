@@ -114,6 +114,8 @@ src/fill/packet2026.js   Mapping for the current PPL packet (+ employer
 src/fill/i9.js           I-9 Section 1 + 2 (shared by the packet and standalone)
 src/fill/w4.js           W-4 with 2020-2023 vs 2024+ layout detection
 tests/smoke.mjs          Fills every form with sample data and checks the output
+tests/fixtures/complete-packet.mjs  One fictional attendant + expected packet
+                         field values, shared by smoke.mjs and the e2e test
 tests/vault.test.mjs     Passphrase vault round trip
 e2e/                     Playwright browser UI tests (see Testing below)
 playwright.config.js     Runs the production build on 127.0.0.1:5181
@@ -155,7 +157,9 @@ run.py                   Launcher: install-if-needed, dev/test/build/serve
 
 ## Testing
 
-- `node tests/smoke.mjs` fills the real templates into `tests/out/`;
+- `node tests/smoke.mjs` fills the real templates into `tests/out/` from the
+  shared fixture `tests/fixtures/complete-packet.mjs` (EXPECTED_PACKET, 109
+  field values; the e2e test checks the same table);
   `node tests/vault.test.mjs` round-trips the vault. `npm test` runs both.
 - `npx playwright test` (also `npm run test:e2e` or `python run.py e2e`) runs
   the browser UI tests in `e2e/` against the production build served by

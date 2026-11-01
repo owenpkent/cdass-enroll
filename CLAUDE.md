@@ -25,7 +25,13 @@ CSP in index.html enforces this and should stay.
 - `src/schema.js` defines all profile/employer fields; the UI renders from it
 - `src/fill/*.js` map exact PDF field names to values, one module per form
   revision; `i9.js` holds the embedded I-9 section. Only the current 2026
-  packet is supported (the 2025 mapping was removed; it is in git history)
+  packet is filled: the July 2026 update, enrollment form V.3, 29 pages. Its
+  page 2 fields are named `TextN`/`Check BoxN`, so they are mapped by position
+  (`PAGE2` in packet2026.js). The importer still reads packets filled from the
+  July 2025 V.2 form (the 2025 mapping itself was removed; it is in git history)
+- `tests/fixtures/complete-packet.mjs` is the fictional complete packet: one
+  attendant plus every expected field value. Smoke and e2e tests both check
+  against it, so a mapping change starts by updating its expectations
 - `docs/forms.md` documents every mapping, template quirk, and the form
   revision workflow; update it when mappings change
 - `src/store.js` persists to localStorage; `src/crypto/vault.js` adds optional
