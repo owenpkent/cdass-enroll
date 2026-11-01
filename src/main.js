@@ -501,14 +501,15 @@ function renderMain() {
     try {
       const { profile: got, employer: emp } = await readFilledPacket(await file.arrayBuffer());
       if (who !== state.person) return discardedImport();
-      // A packet read in is a different person than the one the tick was for.
+      const changed = applyImportedFields(got);
+      const seeded = applyEmployerIfEmpty(emp);
+      // A packet read in is a different person than the one the ticks and the
+      // attendant signature were for. Rebuild the signature makers only now,
+      // after the imported names landed, so they offer the new person's name.
       state.genOptions.stampSignature = false;
-      stampCb.checked = false;
       state.attendantSignature = "";
       state.genOptions.stampAttendant = false;
       renderSignatures();
-      const changed = applyImportedFields(got);
-      const seeded = applyEmployerIfEmpty(emp);
       const standing = seeded.length ? ` Filled ${seeded.length} empty standing detail${seeded.length === 1 ? "" : "s"}.` : "";
       setImportStatus(
         "ok",
