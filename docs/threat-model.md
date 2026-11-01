@@ -119,8 +119,9 @@ See [src/crypto/vault.js](../src/crypto/vault.js) and [src/store.js](../src/stor
 - **Passphrase-strength floor.** Entropy dominates the KDF (a linear multiplier)
   entirely, so the UI refuses weak passphrases and steers toward several random
   words. This is the single biggest real-world lever.
-- **CSP unchanged.** `'wasm-unsafe-eval'` was already present for the OCR/barcode
-  WASM, and it permits compiling embedded bytes, not network access. Nothing
+- **CSP.** `'wasm-unsafe-eval'` stays for `hash-wasm`, and it permits compiling
+  embedded bytes, not network access. (`blob:` scripts and workers, once needed
+  for OCR, are no longer allowed: `worker-src 'none'`.) Nothing
   here loosens the no-network posture in [index.html](../index.html).
 
 ## Prerequisites for the operator-holds-others'-data case

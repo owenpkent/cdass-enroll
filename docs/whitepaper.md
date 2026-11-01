@@ -18,9 +18,9 @@ This paper describes a different approach, proven in production on Colorado
 CDASS attendant enrollment and designed to generalize to Medicaid renewals,
 SNAP applications, and similar programs. The idea is simple. Capture a person's
 information once, on their own device, from the documents and records they
-already have. Then map that information onto any number of official PDFs,
+already have, typed in or imported from a form they already filled. Then map that information onto any number of official PDFs,
 producing exact, still-editable filled copies. Nothing leaves the machine. The
-same stored profile and the same extraction pipeline serve every form. Only a
+same stored profile and the same import path serve every form. Only a
 small, per-form field mapping is new each time.
 
 ## 1. The problem
@@ -52,11 +52,9 @@ These are the principles that made CDASS Enroll work, stated so they can be
 carried to any other form.
 
 1. **Local-first, zero runtime network.** All work happens in the browser on
-   the user's machine: form filling, barcode decoding, and OCR. There is no
-   server, no account, and no telemetry. Third-party engines (the barcode and
-   OCR WebAssembly modules and the OCR model) are vendored to disk so the page
-   never calls out at runtime, and a Content-Security-Policy header stops a
-   dependency that tried. State the guarantee precisely, because the precision
+   the user's machine: form filling and, optionally, passphrase encryption. There
+   is no server, no account, and no telemetry. The page never calls out at
+   runtime, and a Content-Security-Policy header stops a dependency that tried. State the guarantee precisely, because the precision
    is what makes it portable: the policy enforces **same origin**, and the
    origin is the user's own machine. "Nothing leaves the device" is those two
    facts together, not the header alone. Section 5.2 covers what that means for
@@ -94,8 +92,8 @@ The system is a small set of layers. The first five are a reusable engine; only
 the form mapping changes per form.
 
 ```
-   Documents (ID, SS card)        Standing info        Manual entry / import
-   barcode + OCR extraction       (entered once)        (anything not captured)
+   Previous filled form           Standing info        Manual entry
+   (AcroForm import)              (entered once)        (everything else)
             \                          |                        /
              \                         |                       /
               ------------>  Person / household profile  <-----
@@ -113,9 +111,8 @@ the form mapping changes per form.
 - **Data model layer.** One schema declares sections and fields with types
   (text, date, SSN, money, select, checkbox). The UI and the fill mappings both
   derive from it, so the model can grow without touching rendering code.
-- **Capture layer.** Extraction reads structured and semi-structured documents
-  (see Section 4), with manual entry and file import as first-class fallbacks.
-  Every captured value is highlighted for the user to verify.
+- **Capture layer.** Manual entry, plus import of a previously filled form (see
+  Section 4). Every imported value is highlighted for the user to verify.
 - **Fill layer.** One module per form revision maps exact PDF field names to
   profile values, using tolerant helpers so a missing or renamed field is a
   warning, not an exception. Layout differences between revisions are detected
@@ -131,13 +128,12 @@ the form mapping changes per form.
   after generating. A gitignored
   seed file can pre-fill the standing information on a fresh setup.
 - **UI layer.** A single page renders the schema as a form, with a linear flow:
-  upload documents, review the auto-filled fields, generate the PDF.
+  enter the details (or import a previous packet), review, generate the PDF.
 
-## 4. Extraction: getting data in without typing
+## 4. Capture: getting data in
 
-Not all document data is equally easy to capture. The pattern prefers exact
-sources and treats everything else as assistive, with the human as the final
-check.
+The pattern prefers exact sources and treats everything else as typed input, with
+the human as the final check.
 
 - **A form the person already filled.** The best source is not a document at
   all. A filled AcroForm PDF is a name-to-value dictionary in the issuing
@@ -148,33 +144,15 @@ check.
   "import a previous form" as a first-class capture source rather than an
   afterthought. Renewals are the obvious case: last year's form is this year's
   answer sheet.
-- **Structured and exact.** The PDF417 barcode on the back of a US driver's
-  license is the DMV's own machine record in the AAMVA format. One decode
-  yields name, address, date of birth, and license details exactly. This is the
-  gold standard among physical documents: prefer it whenever a structured source
-  exists.
-- **Semi-structured with validation.** A passport's machine-readable zone is
-  two fixed-format lines with check digits. The parser validates each field's
-  check digit and flags any value that fails, rather than silently filling a
-  wrong number.
-- **Unstructured OCR, best-effort.** Social Security cards and the front of a
-  driver's license have no standard layout, so optical character recognition is
-  inherently approximate. Several techniques raise the hit rate without
-  pretending to be exact:
-  - Image enhancement before OCR (upscale small photos, convert to
-    high-contrast grayscale).
-  - A second OCR pass constrained to digits when reading a number such as an
-    SSN, because the engine is far more accurate when it cannot try to fit
-    letters.
-  - Tolerant parsing that corrects common character confusions and then
-    validates the result against the field's real rules (for example, an SSN
-    never starts with certain ranges, so an implausible match is rejected).
-  - A user-guided crop, so when a barcode or number is small in the frame the
-    person can box just that region and the tool enlarges it before decoding.
+- **Everything else is typed once.** CDASS Enroll originally also read driver's
+  license barcodes, passport MRZ lines, and Social Security cards by OCR. That
+  was removed in favor of typing the details in once: the scanning needed a
+  large offline asset set and a looser CSP, and every value still had to be
+  checked by hand.
 
-The rule across all of these: extraction is a convenience, the stored profile
-is the source of truth, and manual entry always remains available. Captured
-values are shown highlighted so the person checks them against the document.
+The rule: capture is a convenience, the stored profile is the source of truth,
+and manual entry always remains available. Imported values are shown highlighted
+so the person checks them against the document.
 
 ## 5. Generalizing to other programs
 
@@ -189,14 +167,13 @@ application is the shape of the data and the set of forms.
 - **Forms are added, not rebuilt.** Each new form is a new flat mapping module
   plus, where needed, new schema fields. Existing forms are untouched.
 - **Reuse compounds across forms.** A household that qualifies for several
-  programs answers the shared questions once. Enter or scan the identity and
+  programs answers the shared questions once. Enter the identity and
   household data a single time, then generate the Medicaid renewal and the SNAP
   application from the same profile. Renewals especially benefit, since the
   prior year's profile can simply be reviewed and regenerated.
-- **New capture opportunities, same discipline.** Pay stubs and award letters
-  can be OCR'd best-effort for income figures, and a prior export of the
-  profile can be imported directly. As with SSN cards, treat OCR of financial
-  documents as assistive and verify every number.
+- **New capture opportunities, same discipline.** A prior export of the profile
+  can be imported directly. Anything read from a document (a pay stub or award
+  letter, say) should be treated as assistive, with every number verified.
 
 Program specifics still require per-form analysis: which fields a given state's
 form exposes, how it gates conditional pages, and which attestations it asks
@@ -257,8 +234,8 @@ rules. It is the same pattern arriving from the other direction, and the two
 projects are complementary halves of one kit.
 
 They share the non-negotiable foundation. Both run entirely in the user's
-browser with no server, no accounts, and no telemetry, both do OCR locally with
-tesseract.js, and in both the documents never leave the device. CDASS Enroll is,
+browser with no server, no accounts, and no telemetry, and in both the documents never leave the device (Coverage Compass does its
+OCR locally with tesseract.js). CDASS Enroll is,
 in effect, a running proof of the privacy-by-architecture constraint that
 Coverage Compass sets for itself.
 
@@ -286,9 +263,10 @@ The division of labor is clean:
 
 | Capability | Where it is proven |
 | --- | --- |
-| Privacy-by-architecture, local-only, in-browser OCR | both |
+| Privacy-by-architecture, local-only | both |
+| In-browser OCR of letters | Coverage Compass |
 | Capture-once personal archive | both as concept; CDASS Enroll has it running |
-| Document extraction (barcode, passport MRZ, OCR with verification) | CDASS Enroll |
+| Import of a previously filled form, attestations skipped | CDASS Enroll |
 | Fill official PDFs into exact, editable copies | CDASS Enroll |
 | Conservative attestation gating | CDASS Enroll |
 | Notice triage: letter classification and deadline extraction | Coverage Compass |
@@ -296,7 +274,7 @@ The division of labor is clean:
 | Per-state rule library an advocate can edit (YAML) | Coverage Compass |
 | WCAG 2.2 AA accessibility, English and Spanish from day one | Coverage Compass |
 
-Read together, the two are one system. CDASS Enroll proves the extraction and
+Read together, the two are one system. CDASS Enroll proves the import and
 fill engine on a real packet today. Coverage Compass adds the triage, the rules
 library, the advocate review, and the accessibility and language work that a
 benefits tool for this population requires. The reusable move is to lift the
@@ -345,9 +323,8 @@ matter how well the fields themselves are protected. The population this serves
 is the one that can least afford that inference.
 
 **Ship mappings, not templates.** This answers the metadata leak and a size
-problem with one decision. CDASS Enroll's build is roughly 43 MB: about 31 MB of
-OCR and barcode engines, 4 MB of OCR model data, and 7 MB for a single blank
-packet. Bundle templates for twenty programs and the weight pushes the design
+problem with one decision. CDASS Enroll's static assets are roughly 8 MB, most of it
+a single blank packet. Bundle templates for twenty programs and the weight pushes the design
 toward fetching them on demand, and fetch-on-demand is the leak. But a mapping is
 kilobytes of JSON, so every mapping for a hundred forms fits comfortably in the
 space of one template. Bundle the whole library unconditionally, make no per-form
@@ -422,7 +399,7 @@ CDASS template.
 - **The tool assists; a human signs.** It fills and the person reviews, signs by
   hand, and submits. It does not submit on anyone's behalf. Automated
   submission, if ever added, would need explicit, careful design and consent.
-- **Accuracy and liability.** Conservative filling and verify-everything OCR
+- **Accuracy and liability.** Conservative filling and verify-everything review
   reduce the chance of a wrong value reaching an official form, but the person
   is responsible for what they sign. The review step is not optional.
 - **Privacy and security.** Local-first removes the breach surface of a server,
@@ -471,8 +448,6 @@ CDASS template.
   amount of local-first architecture touches that. At scale, telling people
   plainly what is in the file they just made, and offering to clear the data
   behind it, is the highest-value privacy work in the tool.
-- **OCR is approximate.** Structured sources should always be preferred, and the
-  human verification step is what makes OCR safe to offer at all.
 - **Forms and jurisdictions vary.** State forms differ and revise on their own
   schedules. The flat-mapping discipline is what keeps that maintainable.
 
@@ -510,13 +485,10 @@ already built.
 | Generic layer | CDASS Enroll implementation |
 | --- | --- |
 | Data model | `src/schema.js` (sections and fields; UI and mappings derive from it) |
-| Capture: barcode | `src/extract/aamva.js` (AAMVA PDF417 from the license back) |
-| Capture: OCR | `src/extract/mrz.js`, `ssncard.js`, `dlfront.js` (passport, SS card, license front) |
 | Capture: a previously filled form | `src/extract/filledpacket.js` (AcroForm read back through the fill table; attestations skipped) |
-| Capture: orchestration | `src/extract/scanner.js` (image enhancement, digit-only pass, crop) |
 | Fill: per-form mapping | `src/fill/packet2026.js`, `w4.js`, shared `i9.js` |
 | Fill: tolerant helpers | `src/fill/util.js` (missing field warns, never throws) |
 | Output | template load, AcroForm fill without flattening, local download |
 | Persistence and privacy | `src/store.js` (local storage, clear-on-start, scrub, seed, export/import) |
-| UI | `src/main.js` (single-page upload, review, generate) |
-| Verification | `tests/smoke.mjs` (fills real templates, asserts exact editable output) |
+| UI | `src/main.js` (single-page enter, review, generate) |
+| Verification | `tests/smoke.mjs` (fills real templates, asserts exact editable output); `e2e/` Playwright UI tests (the page itself, accessibility, zero off-machine requests) |

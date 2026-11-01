@@ -11,7 +11,6 @@ import {
 } from "./schema.js";
 import * as store from "./store.js";
 import * as vault from "./crypto/vault.js";
-import { scanLicense, scanLicenseFront, scanPassport, scanSsnCard, readLicenseRegion, readNameRegion } from "./extract/scanner.js";
 import { readFilledPacket } from "./extract/filledpacket.js";
 import { fillPacket2026 } from "./fill/packet2026.js";
 import { fillI9Standalone } from "./fill/i9.js";
@@ -37,7 +36,7 @@ const state = {
   unlockError: "",
 };
 
-/** Switch to a new person: fresh packet options, and in-flight scans go stale. */
+/** Switch to a new person: fresh packet options, and in-flight imports go stale. */
 function newPerson() {
   state.person++;
   state.genOptions = newGenOptions();
@@ -172,7 +171,7 @@ function renderSections(sections, obj, onChange) {
         });
         if (f.type === "money") {
           inp.inputMode = "decimal";
-          inp.dataset.money = "1"; // refreshInputs revalidates these after a scan or import
+          inp.dataset.money = "1"; // refreshInputs revalidates these after an import
 
           // Tidy "$18.50" to "18.50" on the way out of the field. Punctuation
           // only, and only when the result is valid: a rate that is wrong stays
@@ -200,7 +199,7 @@ function renderSections(sections, obj, onChange) {
   return wrap;
 }
 
-// Push updated values from obj back into rendered inputs (after a scan/scrub).
+// Push updated values from obj back into rendered inputs (after an import or scrub).
 function refreshInputs(container, obj, changedKeys) {
   for (const el of container.querySelectorAll("[data-key]")) {
     const k = el.dataset.key;
@@ -211,7 +210,7 @@ function refreshInputs(container, obj, changedKeys) {
     }
     if (el.value !== String(obj[k] ?? "")) {
       el.value = obj[k] ?? "";
-      // A rate arriving from a scan or an imported packet gets the same tidy
+      // A rate arriving from an imported packet gets the same tidy
       // and the same complaint as one typed by hand.
       if (el.dataset.money) el.dispatchEvent(new Event("change"));
     }
@@ -265,7 +264,7 @@ async function cleanSignatureImage(file) {
 // There is exactly one of these, the employer signature, and it is standing
 // data: uploaded once, reused on every packet. That is also how it ends up on
 // the wrong packet, since it outlives the person it was uploaded for. So the
-// upload also records whose signature it is and when it arrived, which Step 3
+// upload also records whose signature it is and when it arrived, which Step 2
 // shows back before anything is stamped.
 function renderSignatureField(f, obj, onChange) {
   const preview = h("img", { class: "sigpreview", alt: "" });
@@ -412,31 +411,27 @@ function renderUnlockGate() {
   );
 }
 
-// ---------- main flow: scan -> review -> generate ----------
+// ---------- main flow: enter -> generate ----------
 function renderMain() {
   const wrap = h("div");
   const save = () => store.saveProfile(state.profile);
   const formArea = renderSections(PROFILE_SECTIONS, state.profile, save);
 
-  // ----- Step 1: scan -----
-  const scanStatus = h("div", { class: "status" });
-  const cropArea = h("div", { class: "croparea" });
-  const setScanStatus = (cls, msg) => {
-    scanStatus.className = "status " + cls;
-    scanStatus.textContent = msg;
+  // ----- optional import of a previously filled packet -----
+  const importStatus = h("div", { class: "status" });
+  const setImportStatus = (cls, msg) => {
+    importStatus.className = "status " + cls;
+    importStatus.textContent = msg;
   };
 
   // The person changed while a read was running, so its result is not theirs.
-  const discardedScan = () => {
-    cropArea.replaceChildren();
-    setScanStatus("", "A read that was still running when you changed person was discarded.");
-  };
+  const discardedImport = () =>
+    setImportStatus("", "A read that was still running when you changed person was discarded.");
 
-  // Apply extracted fields to the profile, flash what changed, return the keys.
-  function applyScanFields(fields) {
+  // Apply imported fields to the profile, flash what changed, return the keys.
+  function applyImportedFields(fields) {
     const changed = new Set();
     for (const [k, v] of Object.entries(fields)) {
-      if (k.endsWith("Unverified")) continue;
       if (state.profile[k] !== v) {
         state.profile[k] = v;
         changed.add(k);
@@ -446,38 +441,6 @@ function renderMain() {
     refreshInputs(formArea, state.profile, changed);
     formArea.dispatchEvent(new CustomEvent("resync"));
     return changed;
-  }
-
-  async function handleScan(file, scanFn, label, onFail) {
-    setScanStatus("busy", `Reading ${label} locally... (first OCR run takes a few seconds)`);
-    const who = state.person;
-    try {
-      // The license-front scan can run a dozen sequential OCR passes, so it
-      // reports progress; the other scanners ignore the callback.
-      const { fields, source } = await scanFn(file, (msg) => who === state.person && setScanStatus("busy", msg));
-      if (who !== state.person) return discardedScan();
-      const changed = applyScanFields(fields);
-      let warn = fields.passportNumberUnverified
-        ? ` Passport number "${fields.passportNumberUnverified}" failed its check digit; verify it manually.`
-        : "";
-      // Barcode truncation flags (aamva.js): the name on the card was cut short.
-      for (const w of fields.warnings || []) warn += ` ${w}`;
-      setScanStatus(
-        "ok",
-        `${source}: filled ${changed.size} field${changed.size === 1 ? "" : "s"} (${[...changed].join(", ") || "none new"}). Review below before generating.${warn}`
-      );
-      // A front scan that couldn't read the name: offer the name-crop path,
-      // which OCRs a tight box far more reliably than the whole card.
-      if (scanFn === scanLicenseFront && !state.profile.first && !state.profile.last) {
-        offerNameCrop(file);
-      } else {
-        cropArea.replaceChildren();
-      }
-    } catch (e) {
-      if (who !== state.person) return discardedScan();
-      if (onFail) onFail(file, e);
-      else setScanStatus("err", e.message);
-    }
   }
 
   // Standing details fill in only where they are still blank, the same rule the
@@ -497,164 +460,30 @@ function renderMain() {
 
   // Import a previously filled packet. A filled AcroForm is the most accurate
   // input this app takes (the agency's own field names against values a human
-  // already checked and signed), so it goes through the same review path as a
-  // scan: every value flashes yellow and nothing is trusted blindly.
+  // already checked and signed), but it still goes through review: every value
+  // flashes yellow and nothing is trusted blindly.
   async function handleImport(file) {
-    setScanStatus("busy", "Reading the packet locally...");
+    setImportStatus("busy", "Reading the packet locally...");
     const who = state.person;
     try {
       const { profile: got, employer: emp } = await readFilledPacket(await file.arrayBuffer());
-      if (who !== state.person) return discardedScan();
+      if (who !== state.person) return discardedImport();
       // A packet read in is a different person than the one the tick was for.
       state.genOptions.stampSignature = false;
       stampCb.checked = false;
-      const changed = applyScanFields(got);
+      const changed = applyImportedFields(got);
       const seeded = applyEmployerIfEmpty(emp);
       const standing = seeded.length ? ` Filled ${seeded.length} empty standing detail${seeded.length === 1 ? "" : "s"}.` : "";
-      setScanStatus(
+      setImportStatus(
         "ok",
         `Previous packet: filled ${changed.size} field${changed.size === 1 ? "" : "s"}.${standing} ` +
           "Tax, live-in, and work-authorization answers are not imported; set those yourself. Review everything below."
       );
-      cropArea.replaceChildren();
     } catch (e) {
-      if (who !== state.person) return discardedScan();
-      setScanStatus("err", e.message);
+      if (who !== state.person) return discardedImport();
+      setImportStatus("err", e.message);
     }
   }
-
-  // Two cropper modes: decode a boxed barcode, or OCR a boxed name region. Both
-  // reuse the same drag-a-box UI below; only the "read" step and the copy differ.
-  const BARCODE_MODE = {
-    read: readLicenseRegion,
-    busy: "Reading the selected area...",
-    hint: "Drag a box around just the striped barcode, then read it. A tight box around the bars works best.",
-  };
-  const NAME_MODE = {
-    read: readNameRegion,
-    busy: "Reading the name...",
-    hint: "Drag a box around just the name (the one or two name lines, not the address), then read it. A tight box reads far better than the whole card.",
-  };
-
-  // The name barely OCRs off a whole license front (the security background
-  // swamps it), but a tight crop of just the name reads well. When a front scan
-  // leaves the name empty, offer to box it.
-  function offerNameCrop(file) {
-    cropArea.replaceChildren(
-      h("p", { class: "note", style: "margin-bottom:0.4rem" },
-        "The name didn't read from the whole card. Box just the name and read that — it works much better."),
-      h("div", { class: "btnrow" },
-        h("button", { class: "btn primary", onclick: () => showCropper(file, null, NAME_MODE) }, "Draw a box around the name"),
-        h("button", { class: "btn", onclick: () => cropArea.replaceChildren() }, "Dismiss"))
-    );
-  }
-
-  // When the license barcode won't auto-decode, show the photo and let the user
-  // box the barcode; that region is enlarged and decoded. With NAME_MODE, the
-  // boxed region is OCR'd as a name instead.
-  async function showCropper(file, err, mode = BARCODE_MODE) {
-    if (err && err.message) setScanStatus("err", err.message);
-    let bitmap;
-    try {
-      bitmap = await loadImageFile(file);
-    } catch (e) {
-      return setScanStatus("err", e.message);
-    }
-    const dispScale = Math.min(1, 640 / bitmap.width);
-    const dw = Math.max(1, Math.round(bitmap.width * dispScale));
-    const dh = Math.max(1, Math.round(bitmap.height * dispScale));
-    const canvas = h("canvas", { class: "cropcanvas" });
-    canvas.width = dw;
-    canvas.height = dh;
-    const ctx = canvas.getContext("2d");
-    let sel = null;
-    let drag = null;
-    const redraw = () => {
-      ctx.drawImage(bitmap, 0, 0, dw, dh);
-      if (sel) {
-        ctx.strokeStyle = "#1f6feb";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
-      }
-    };
-    redraw();
-    const at = (e) => {
-      const r = canvas.getBoundingClientRect();
-      return { x: ((e.clientX - r.left) / r.width) * dw, y: ((e.clientY - r.top) / r.height) * dh };
-    };
-    canvas.addEventListener("pointerdown", (e) => {
-      canvas.setPointerCapture(e.pointerId);
-      drag = at(e);
-      sel = { x: drag.x, y: drag.y, w: 0, h: 0 };
-      redraw();
-    });
-    canvas.addEventListener("pointermove", (e) => {
-      if (!drag) return;
-      const p = at(e);
-      sel = { x: Math.min(drag.x, p.x), y: Math.min(drag.y, p.y), w: Math.abs(p.x - drag.x), h: Math.abs(p.y - drag.y) };
-      redraw();
-    });
-    const endDrag = () => (drag = null);
-    canvas.addEventListener("pointerup", endDrag);
-    canvas.addEventListener("pointercancel", endDrag);
-
-    const readBtn = h(
-      "button",
-      {
-        class: "btn primary",
-        onclick: async () => {
-          const region = sel && sel.w > 8 && sel.h > 8 ? sel : { x: 0, y: 0, w: dw, h: dh };
-          const inv = 1 / dispScale;
-          setScanStatus("busy", mode.busy);
-          const who = state.person;
-          try {
-            const { fields, source } = await mode.read(
-              bitmap,
-              region.x * inv,
-              region.y * inv,
-              region.w * inv,
-              region.h * inv
-            );
-            if (who !== state.person) return discardedScan();
-            const changed = applyScanFields(fields);
-            setScanStatus("ok", `${source}: filled ${changed.size} field${changed.size === 1 ? "" : "s"}. Review below before generating.`);
-            cropArea.replaceChildren();
-          } catch (e2) {
-            if (who !== state.person) return discardedScan();
-            setScanStatus("err", e2.message);
-          }
-        },
-      },
-      "Read selected area"
-    );
-    const cancelBtn = h("button", { class: "btn", onclick: () => cropArea.replaceChildren() }, "Cancel");
-
-    cropArea.replaceChildren(
-      h("p", { class: "note", style: "margin-bottom:0.4rem" }, mode.hint),
-      canvas,
-      h("div", { class: "btnrow" }, readBtn, cancelBtn)
-    );
-  }
-
-  const scanButton = (label, hint, scanFn, onFail) => {
-    const input = h("input", {
-      type: "file",
-      accept: "image/*",
-      onchange: (e) => {
-        const file = e.target.files[0];
-        if (file) handleScan(file, scanFn, label, onFail);
-        e.target.value = "";
-      },
-    });
-    return h(
-      "label",
-      { class: "scanbtn" },
-      h("span", { class: "big" }, "\u{1F4F7}"),
-      h("strong", {}, label),
-      h("small", {}, hint),
-      input
-    );
-  };
 
   const importButton = () => {
     const input = h("input", {
@@ -668,7 +497,7 @@ function renderMain() {
     });
     return h(
       "label",
-      { class: "scanbtn narrow" },
+      { class: "filebtn" },
       h("span", { class: "big" }, "\u{1F4C4}"),
       h("strong", {}, "Previous packet"),
       h("small", {}, "A filled PDF from a past hire"),
@@ -676,7 +505,7 @@ function renderMain() {
     );
   };
 
-  // ----- Step 3: generate -----
+  // ----- Step 2: generate -----
   const opts = state.genOptions;
   const genStatus = h("div", { class: "status" });
   const afterGen = h("div");
@@ -838,45 +667,31 @@ function renderMain() {
   wrap.append(
     h(
       "div",
-      { class: "card" },
-      h("h2", {}, "Step 1: Upload documents"),
-      h(
-        "div",
-        { class: "scanrow" },
-        scanButton("License barcode", "Back of card (most accurate)", scanLicense, showCropper),
-        scanButton("License front", "Front photo: name, DOB + address", scanLicenseFront, (file, e) => showCropper(file, e, NAME_MODE)),
-        scanButton("Passport", "Photo page, straight on", scanPassport),
-        scanButton("Social Security card", "Front, well lit", scanSsnCard)
-      ),
-      h(
-        "p",
-        { class: "note orline" },
-        "Or start from paperwork you already have. Reading a filled packet back in is more accurate than any scan, and it brings over identity, contact, address, payment, and rates. The tax, live-in, and work-authorization answers are yours to make, so it leaves those alone."
-      ),
-      h("div", { class: "scanrow" }, importButton()),
-      scanStatus,
-      cropArea,
-      h(
-        "p",
-        { class: "note" },
-        "Images are decoded in this browser and never stored. Extracted values flash yellow below; always double-check them against the document."
-      )
-    ),
-    h(
-      "div",
       { class: "stepintro" },
-      h("h2", {}, "Step 2: Their information"),
+      h("h2", {}, "Step 1: Their information"),
       h(
         "p",
         { class: "note" },
-        "Auto-filled from the scans and from your saved details. Fill in anything the scans can't know (such as banking) and correct any misreads."
+        "Type it in once. Your saved details (Member, employer, rates) are already filled in, and everything here goes onto every form in the packet."
+      ),
+      h(
+        "details",
+        { class: "importrow" },
+        h("summary", {}, "Optional: start from a packet you already filled for this person"),
+        h(
+          "p",
+          { class: "note" },
+          "Reading a filled packet back in brings over identity, contact, address, payment, and rates. The tax, live-in, and work-authorization answers are yours to make, so it leaves those alone."
+        ),
+        importButton(),
+        importStatus
       )
     ),
     formArea,
     h(
       "div",
       { class: "card" },
-      h("h2", {}, "Step 3: Generate the PDF"),
+      h("h2", {}, "Step 2: Generate the PDF"),
       h(
         "div",
         { class: "grid" },
@@ -1140,7 +955,7 @@ function renderPrivacyCard() {
     h(
       "p",
       {},
-      "Everything in this app runs on this computer. Form filling, barcode reading, and OCR all happen inside this browser tab. The app makes no network requests at runtime, has no server, no analytics, and no accounts."
+      "Everything in this app runs on this computer. Form filling happens inside this browser tab. The app makes no network requests at runtime, has no server, no analytics, and no accounts."
     ),
     h(
       "p",

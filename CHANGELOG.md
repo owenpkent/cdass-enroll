@@ -7,6 +7,40 @@ below as 0.1.0, and work since then sits under Unreleased.
 
 ## [Unreleased]
 
+### 2026-11-01
+
+#### Removed
+- **All ID-document scanning.** Driver's license barcode (AAMVA/PDF417 via
+  zxing-wasm), license-front OCR, passport MRZ, Social Security card OCR
+  (tesseract.js), the drag-a-box cropper, and the name crop are gone, along with
+  `src/extract/{aamva,dlfront,mrz,scanner,ssncard}.js`, `scripts/setup-assets.mjs`
+  (so `npm run setup` and the postinstall hook no longer exist), `tests/fixtures/`,
+  `docs/id-barcode.md`, `public/vendor/` and `public/tessdata/`. The `tesseract.js`
+  and `zxing-wasm` dependencies are dropped. The attendant's details are typed in
+  once instead.
+
+#### Added
+- **Browser UI tests (Playwright + axe).** `e2e/` drives installed Microsoft Edge
+  against the production build (`vite preview` on 127.0.0.1:5181) via
+  `npx playwright test`, `npm run test:e2e`, or `python run.py e2e`. Every test
+  fails on any request that leaves 127.0.0.1 or any console error. Covers: no scan
+  UI, type once then generate and read the packet and W-4 back, a malformed rate
+  blocking Generate, Your details persisting across reload while the attendant does
+  not, the signature not stamping without the tick, the previous-packet round trip,
+  axe WCAG 2.2 AA on each view, and keyboard reach of the import picker.
+
+#### Changed
+- **Page layout.** "Step 1: Their information" (intro note, then a collapsed
+  "Optional: start from a packet you already filled for this person" holding the
+  unchanged Previous packet import), the form sections, then "Step 2: Generate the
+  PDF" (was Step 3; the signature-stamp box, dates, and forms checklist live there).
+  The identity section is now "Identity documents (I-9 Lists B and C)"; those
+  fields are still entered by hand and still drive I-9 Lists A/B/C.
+- **CSP tightened.** `script-src` no longer allows `blob:` and `worker-src` is
+  `'none'`; both existed only for the OCR worker. `'wasm-unsafe-eval'` stays for
+  `hash-wasm`.
+- `npm test` now runs the smoke test and the vault test.
+
 ### Added
 - **A Save details button in ⚙ Your details.** The standing details have always
   written on every keystroke, but nothing on the page said so, which reads as

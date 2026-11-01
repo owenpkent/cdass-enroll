@@ -1,10 +1,8 @@
 // Read a previously filled CO CDASS attendant packet back into a profile.
 //
-// A filled AcroForm is the best capture source this app has. The licence barcode
-// is the gold standard among *documents*, but a filled form beats it: it is the
-// agency's own field names against values a human already checked and signed, so
-// there is no OCR, no barcode, and no check digit between us and the data. Point
-// it at last year's packet and the attendant's details come back exactly.
+// A filled AcroForm is the agency's own field names against values a human
+// already checked and signed. Point it at last year's packet and the attendant's
+// details come back exactly.
 //
 // What it will not import, on purpose: anything the packet phrases as a
 // first-person attestation. The tax-exemption statements ("I am not the spouse,
@@ -15,8 +13,7 @@
 // is identity, contact, address, payment, and rates: the parts that are pure
 // retyping.
 //
-// Values are returned for review, never trusted: main.js flashes each one yellow
-// exactly like a scan result.
+// Values are returned for review, never trusted: main.js flashes each one yellow.
 
 import { PDFDocument } from "pdf-lib";
 import { PACKET2026_TEXT, RATE_TABLE } from "../fill/packet2026.js";

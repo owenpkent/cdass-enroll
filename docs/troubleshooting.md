@@ -1,92 +1,13 @@
 # Troubleshooting
 
-## Scanning
-
-The barcode path has its own reference, including a step-by-step recipe for
-diagnosing a scan that will not read: [id-barcode.md](id-barcode.md).
-
-**"No PDF417 barcode found" on a driver's license**
-
-- You need the **back** of the card (the wide striped rectangle), not the
-  front.
-- **Focus matters more than getting close.** A sharp photo decodes even when
-  the whole card is only ~900px wide, while a soft one can fail at 1800px. If
-  it will not read, tap the screen to focus and hold still rather than moving
-  nearer. The app sharpens before decoding, which rescues the ordinary softness
-  of phone optics and JPEG, but it cannot undo real motion blur.
-- Lay the card flat, square-on, no glare across the barcode. Indirect daylight
-  works better than a flash.
-- Crop the photo to roughly the card before uploading if the background is
-  busy.
-- The app automatically retries with an upscaled, high-contrast version of the
-  photo (and a second binarizer), so if it still fails the barcode is likely out
-  of focus, too small in the frame, or you photographed the front by mistake.
-- When auto-decoding fails, the photo appears with a draw-a-box tool. Box just
-  the striped barcode tightly and the app enlarges that region and retries,
-  which rescues a barcode that was small in the frame.
-- No luck with the barcode? Use the **License front** scan instead: it OCRs the
-  front for name, date of birth, and address (best-effort, verify it). Or type the
-  details in (license number, state, expiration, address, and DOB are all
-  editable). Very worn cards sometimes have unreadable barcodes.
-
-**The barcode scan says it worked but only filled the license number**
-
-Fixed. This was a bug, not your photo: zxing was returning the payload with
-newlines rendered as the literal text `<LF>`, so the AAMVA parser read the
-entire barcode as one giant license number. If you see this again, the
-`textMode` in `AAMVA_READ_OPTIONS` (`src/extract/aamva.js`) has regressed;
-`node tests/smoke.mjs` covers it.
-
-**A state ID card scanned, but the ID number is missing**
-
-Fixed, and it was specific to ID cards rather than driver's licenses. A non-DL
-card uses the subfile type `ID` (AAMVA D.12.4), so its payload reads
-`IDDAQ<number>`, and `DDA` is itself a valid element ID that starts one
-character early and swallowed the number. `DL` cards were unaffected because
-`DLDAQ` contains no such collision, which is why it went unnoticed. Both card
-types now have a barcode fixture in `tests/fixtures/`.
-
-**The SSN came out wrong (one digit off) and nothing warned me**
-
-Possible, and undetectable by the app. An SSN has no check digit, so a misread
-of `1` as `4` produces an equally valid-looking number. The digits-only second
-OCR pass is not a safeguard here: it shares an engine and image with the first
-pass and misreads the same character the same way. **Always read the SSN back
-against the card**, or just type it. The passport MRZ is different: it carries
-check digits, so a bad read is flagged rather than accepted.
-
-**Passport MRZ won't read or values look wrong**
-
-- Photograph the whole photo page straight-on; the two `<<<` lines at the
-  bottom must be sharp and unwarped (a curled page is the usual culprit).
-- The parser validates check digits. A value that fails its check digit is
-  reported as unverified in the status line rather than filled; fix it by
-  hand from the document.
-- The first OCR run after opening the app takes a few seconds while the
-  worker boots. Later scans are fast.
-
-**SSN card OCR misses the number or name**
-
-- Even lighting, no shadows across the card, fill the frame.
-- The app retries with an enhanced (upscaled, high-contrast) image and
-  tolerates common digit misreads (I for 1, S for 5, and so on), but OCR on
-  these cards is still the least reliable of the three scans.
-- If it keeps missing, just type the nine digits into the SSN field; verify
-  every digit either way.
-
 ## Setup
 
-**OCR says it can't load, or scans hang**
+**`npm run setup` is gone**
 
-`public/tessdata/eng.traineddata` is probably missing (the one-time download
-during `npm install` may have been blocked). Re-run:
-
-```
-npm run setup
-```
-
-or manually place an `eng.traineddata` (from the tesseract-ocr
-`tessdata_fast` repo) at `public/tessdata/eng.traineddata`.
+The app no longer vendors OCR or barcode assets, so there is nothing to
+download after `npm install`. If an old note tells you to run it, skip it. A
+leftover `public/vendor/` or `public/tessdata/` folder from an older checkout
+can be deleted.
 
 **Dev server won't start: port in use**
 
@@ -111,21 +32,21 @@ template revision renamed it; see "When a form is revised" in
 
 **A date box near a signature is blank**
 
-Some are intentional. The 2026 packet's Direct Deposit date shares a PDF
+Some are intentional. The 2026 packet's Direct Deposit date (page 9) shares a PDF
 field with the EVV vendor date, so it is left for hand-dating. Signature
 fields are never filled by design.
 
 **The employer signature is missing from the packet**
 
 It is stamped only when **Stamp this signature on the employer signature lines**
-is ticked in Step 3, and that tick is off again every time the app restarts and
+is ticked in Step 2, and that tick is off again every time the app restarts and
 every time you start a new person. This is deliberate: the signature is standing
 data that outlives the person it was uploaded for, and an unnoticed reuse means a
 packet signed by someone who never agreed to sign it. The status line after
-generating says which happened, and the Step 3 box shows the image, whose
+generating says which happened, and the Step 2 box shows the image, whose
 signature it is, and when it was uploaded.
 
-**Step 3 says the signature was uploaded for someone else**
+**Step 2 says the signature was uploaded for someone else**
 
 The employer of record under Your details no longer matches the name recorded
 when the signature was uploaded. Upload the right signature, or leave the box

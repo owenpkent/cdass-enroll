@@ -7,8 +7,8 @@ documents: about ten minutes.
 To start the app: `python run.py` in the project folder. It installs anything
 missing on first run and opens http://127.0.0.1:5180 in your browser.
 
-The whole app is a single page: upload documents at the top, review the
-auto-filled form in the middle, generate the PDF at the bottom. Your own
+The whole app is a single page: type the attendant's information in the
+middle, generate the PDF at the bottom. Your own
 reused details live behind the **⚙ Your details** button in the top right.
 
 ## One-time: set up "Your details"
@@ -27,69 +27,40 @@ packet, so enter it once:
   it close to the writing.** The image is scaled to the height of the signature
   line, margin and all, so a wide border around the mark shrinks the mark. The
   app records whose signature it is (the employer of record at the time of
-  upload) and shows that back in Step 3 before anything is stamped. The
+  upload) and shows that back in Step 2 before anything is stamped. The
   attendant and all other parties still sign by hand.
 
 Everything saves as you type. If `public/seed.local.json` exists (it does on
 the original machine), these fields arrive pre-filled the first time the app
 runs in a browser profile. Click **← Back to enrollment** when done.
 
-## Step 1: Upload documents
+## Step 1: Their information
 
-The scan card is at the top of the page. Use a phone photo or any image file:
-
-- **Previous packet**: if you already have a filled packet for this person (a
-  re-hire, a correction, or a packet from your old computer), this is the
-  best input available. The app reads the values out of the PDF's own form
-  fields, so nothing is guessed. It fills identity, contact, address, payment,
-  and rates, plus any Member/employer details you have not set yet, and it never
-  overwrites standing details you already entered. It does not import the tax,
-  live-in, or work-authorization answers: those are attestations the signer
-  makes, so set them yourself each time.
-- **License barcode**: photograph the **back** of the card. The app reads
-  the PDF417 barcode (the wide striped rectangle), which contains their full
-  name, address, date of birth, license number, and expiration exactly as the
-  DMV recorded them. Tips: lay the card flat, fill the frame, avoid glare. This
-  is the most accurate license scan. If it won't decode, the app shows the
-  photo and lets you drag a box around just the barcode to retry.
-- **License front**: if the barcode won't read, photograph the **front** of
-  the card. OCR best-effort fills the name, date of birth, and address (the name
-  reads more reliably from the back barcode or the Social Security card). Front
-  layouts vary by state, so verify these fields; the license number and
-  expiration still need typing. The security background on modern REAL-ID cards
-  defeats whole-card OCR, so when fields come back missing the scan
-  automatically finds the printed text lines and re-reads each one as its own
-  tight crop, which works far better; on a real Colorado card that recovers the
-  name and the date of birth. If the name still misses, the app offers
-  **"Draw a box around the name"**: box the name lines yourself and it OCRs that
-  tight crop. Fields are left blank rather than guessed whenever the read is
-  ambiguous: the date of birth stays empty when OCR only catches the expiry
-  date, and the name stays empty rather than risk swapping the first and last.
-  The **address usually will not read** on cards that
-  print it over background artwork; type it, or use the back barcode, which
-  carries it digitally.
-- **Passport**: photograph the photo page straight-on with the whole page in
-  frame. The app reads the two machine-readable `<<<` lines and validates
-  their check digits. The first OCR run takes a few seconds to warm up.
-- **Social Security card**: photograph the front, well lit. The app extracts
-  the SSN and printed name.
-
-Which documents you need depends on the I-9:
+The app does not read ID documents. Type the attendant's details in once,
+working down the form sections, from their driver's license, Social Security
+card, or passport in your hand. Which documents you need depends on the I-9:
 
 - A **U.S. passport** alone satisfies the I-9 (List A).
 - Otherwise use a **driver's license** (List B) **plus** a **Social Security
-  card** (List C). This is the most common combination.
+  card** (List C). This is the most common combination. The license number,
+  state, and expiration, the SSN card, and any passport details go under
+  **Identity documents (I-9 Lists B and C)**.
 
-Every value a scan fills in flashes yellow. Check each one against the
-physical document, especially OCR results from the SSN card.
+Optional: a collapsed section at the top, **Start from a packet you already
+filled for this person**, takes a **previous packet** PDF (a re-hire, a
+correction, or a packet from your old computer). The app reads the values out of
+the PDF's own form fields, so nothing is guessed. It fills identity, contact,
+address, payment, and rates, plus any Member/employer details you have not set
+yet, and it never overwrites standing details you already entered. It does not
+import the tax, live-in, or work-authorization answers: those are attestations
+the signer makes, so set them yourself each time. Imported values flash yellow;
+check each one.
 
-## Step 2: Complete their information
-
-The form is auto-filled from the scans and from Your details. Work down the
-sections and fill what the scans cannot know:
+Then work down the rest of the sections. The Member and employer fields come
+from Your details:
 
 - Contact details, preferred contact method, texting consent.
-- **Mailing address**: the scan fills the address printed on the license. If
+- **Mailing address**: the residence address. If
   mail should go somewhere else, uncheck "Mailing address is the same"; the
   mailing fields unlock pre-filled from that address so you can change just
   what differs (a different street, a PO Box, etc.).
@@ -109,7 +80,7 @@ sections and fill what the scans cannot know:
 - **W-4 withholding**: filing status and any Step 2-4 amounts. When in doubt
   leave the money fields blank; the attendant can always file a new W-4.
 
-## Step 3: Generate the PDF
+## Step 2: Generate the PDF
 
 At the bottom of the page:
 
@@ -132,12 +103,12 @@ Each PDF is an exact, editable copy of the official packet with the fields
 filled in, so you can still adjust anything in your PDF reader before
 printing.
 
-## Step 4: Print, sign, submit
+## Step 3: Print, sign, submit
 
 - Review **every page**. The app fills conservatively, but you are the one
   signing.
 - Sign and date by hand wherever a signature is required. If you ticked the
-  stamp box in Step 3, the employer lines are already signed; the attendant and
+  stamp box in Step 2, the employer lines are already signed; the attendant and
   other parties still sign by hand. A few date boxes are
   intentionally left blank because of template quirks; see [forms.md](forms.md).
 - Pages that don't apply (I-9 Supplement A/B, rehire sections) stay blank.

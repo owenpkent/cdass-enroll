@@ -14,8 +14,11 @@ CSP in index.html enforces this and should stay.
   machine, never use it
 - `node tests/smoke.mjs` (or `python run.py test`) - run after any change to
   src/extract/ or src/fill/; it fills the real templates into tests/out/
-- `npm run setup` - re-vendor WASM/OCR assets into public/ (also runs on
-  install)
+- `npx playwright test` (or `python run.py e2e`) - browser UI tests in e2e/,
+  run after any UI change. They build and serve on 127.0.0.1:5181, drive the
+  installed Edge, and fail on any request off 127.0.0.1 or any console error
+- There is no ID scanning (barcode/OCR was removed): the attendant's details
+  are typed in once. Do not reintroduce camera or image-reading features
 
 ## Where things live
 

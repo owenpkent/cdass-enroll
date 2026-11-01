@@ -190,7 +190,7 @@ export const PROFILE_SECTIONS = [
   },
   {
     id: "iddocs",
-    title: "Identity documents (auto-filled from scans)",
+    title: "Identity documents (I-9 Lists B and C)",
     fields: [
       { key: "dlNumber", label: "Driver's license number", type: "text", sensitive: true },
       { key: "dlState", label: "License state", type: "text", width: "s" },
