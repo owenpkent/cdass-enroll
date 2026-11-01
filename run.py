@@ -3,8 +3,9 @@ CDASS Enroll launcher.
 
 Usage:
     python run.py            # start the app (dev server + open browser)
-    python run.py install    # npm install (also vendors OCR/barcode assets)
+    python run.py install    # npm install
     python run.py test       # run the smoke tests (node tests/smoke.mjs)
+    python run.py e2e        # run the browser UI tests (Playwright, installed Edge)
     python run.py build      # production build to dist/
     python run.py serve      # serve the production build (vite preview)
 
@@ -51,14 +52,9 @@ def run(args: list[str]) -> int:
 
 def ensure_installed() -> None:
     if not os.path.isdir(os.path.join(ROOT, "node_modules")):
-        print("First run: installing dependencies (also vendors OCR assets)...")
+        print("First run: installing dependencies...")
         if run(["npm", "install"]) != 0:
             sys.exit("npm install failed")
-    if not os.path.isfile(os.path.join(ROOT, "public", "tessdata", "eng.traineddata")):
-        print("OCR model missing, vendoring assets...")
-        run(["npm", "run", "setup"])
-        if not os.path.isfile(os.path.join(ROOT, "public", "tessdata", "eng.traineddata")):
-            print("  warning: OCR model still missing; passport/SSN-card OCR will not work")
 
 
 def port_in_use() -> bool:
@@ -111,6 +107,9 @@ def main() -> None:
     if mode == "test":
         ensure_installed()
         sys.exit(run(["node", "tests/smoke.mjs"]))
+    if mode == "e2e":
+        ensure_installed()
+        sys.exit(run(["npx", "playwright", "test", *sys.argv[2:]]))
     if mode == "build":
         ensure_installed()
         sys.exit(run(["npm", "run", "build"]))

@@ -6,13 +6,12 @@ through Public Partnerships LLC (PPL), the program's fiscal employer agent.
 
 Enrolling one new attendant means a 28-page PPL packet plus an IRS W-4:
 name, address, SSN, and date of birth copied by hand half a dozen times.
-This app asks for everything once (or reads it straight off the new hire's
-driver's license, passport, or Social Security card), then fills every form
+This app asks for everything once, typed by hand, then fills every form
 in one click.
 
 **Privacy first.** Everything runs in your browser on this computer. There is
-no server, no account, no analytics, and no network access at runtime. ID
-photos are decoded in memory and never stored. See
+no server, no account, no analytics, and no network access at runtime. It never
+reads ID documents; you type the details in. See
 [Privacy model](#privacy-model).
 
 ## Quick start
@@ -21,26 +20,23 @@ photos are decoded in memory and never stored. See
 python run.py
 ```
 
-That installs dependencies on first run (including the offline OCR/barcode
-assets, ~20 MB), starts the local server, and opens the app at
+That installs dependencies on first run, starts the local server, and opens the app at
 http://127.0.0.1:5180. Plain npm works too (`npm install`, `npm run dev`).
 
 The app is a single page that handles one person at a time:
 
 1. **One-time, under ⚙ Your details**: enter the Member and employer of record;
    they are reused on every packet.
-2. **Step 1, upload documents**: photograph the **back** of the attendant's
-   driver's license (the barcode) and their Social Security card; the app
-   fills in their details. (Or type them in.)
-3. **Step 2, complete their information**: fill what the scans can't know,
-   such as banking and the standard hourly rate (the emergency rate defaults
-   to $45). Review everything.
-4. **Step 3, generate**: set the dates, confirm whether your saved signature
-   belongs on this packet, click Generate. Filled PDFs land in your Downloads
-   folder.
-5. Print, review every page, sign and date by hand, submit to PPL.
+2. **Step 1, their information**: type the attendant's details in once, down
+   the form sections (banking, the standard hourly rate; the emergency rate
+   defaults to $45). Optionally start from a packet you already filled for
+   this person. Review everything.
+3. **Step 2, generate the PDF**: set the dates, confirm whether your saved
+   signature belongs on this packet, click Generate. Filled PDFs land in your
+   Downloads folder.
+4. Print, review every page, sign and date by hand, submit to PPL.
 
-The full walkthrough, including scanning tips and what each form needs, is in
+The full walkthrough, including what each form needs, is in
 [docs/usage.md](docs/usage.md).
 
 ## What it fills
@@ -55,38 +51,28 @@ Signatures are never fabricated. The app places only your employer signature,
 from an image you upload in Your details, on the employer lines; the attendant
 and everyone else sign by hand. A saved signature is standing data that outlives
 the person it was uploaded for, so it is stamped only when you tick the box in
-Step 3 confirming it belongs on *this* packet, and that tick clears on every
+Step 2 confirming it belongs on *this* packet, and that tick clears on every
 restart and every new person. The app also deliberately leaves a checkbox
 blank wherever an attestation is ambiguous (details in
 [docs/forms.md](docs/forms.md)).
 
-## Document scanning
+## Previous packets
 
-All on-device:
-
-- **A previous packet**: the most accurate input there is. Hand the app a packet
-  you already filled for this person and it reads the values straight back out
-  of the PDF's form fields, with no OCR or barcode in the way. It brings over
-  identity, contact, address, payment, and rates; the tax, live-in, and
-  work-authorization answers are attestations, so it leaves those for you.
-- **Driver's license**: photograph the **back**. The PDF417 barcode carries
-  name, address, DOB, license number, and expiration in machine-readable
-  form, which is far more reliable than OCR of the front.
-- **Passport**: photo page. The MRZ (the two `<<<` lines at the bottom) is
-  parsed with check-digit validation; values that fail their check digit are
-  flagged instead of silently accepted.
-- **Social Security card**: OCR for the SSN and printed name.
-
-Extracted values flash yellow in the form so you can review them. Always
-review them.
+The app does not read ID documents (that was removed in favor of typing the
+details in once). The one import is a **previous packet**: hand it a packet you
+already filled for this person (under "Optional: start from a packet you already
+filled" in Step 1) and it reads the values straight back out of the PDF's form
+fields. It brings over identity, contact, address, payment, and rates; the tax,
+live-in, and work-authorization answers are attestations, so it leaves those for
+you. Imported values flash yellow in the form so you can review them.
 
 ## Privacy model
 
 - **No server.** The app is a static page; nothing is uploaded anywhere.
-- **Zero network requests at runtime.** OCR models and barcode-reader WASM
-  are vendored to disk by `npm install`. A Content-Security-Policy header
+- **Zero network requests at runtime.** A Content-Security-Policy header
   blocks outbound connections as a second layer of enforcement.
-- **ID photos are never stored.** They are decoded in memory and discarded.
+- **No ID images are handled.** The app has no photo or scan input; you type
+  the details in.
 - **The person's data stays on this machine**, in browser localStorage.
   Two cleanup layers keep SSNs from lingering: after each generation the app
   **offers to clear sensitive fields** immediately, and the saved person is
@@ -110,17 +96,16 @@ review them.
   overwrites existing settings and must never be committed. `signature` is a
   standing detail like any other, so a seed file can carry the signature image
   as a PNG data URL; add `signatureFor` and `signatureUploadedAt` beside it if
-  you want Step 3 to name whose signature it is rather than asking.
+  you want Step 2 to name whose signature it is rather than asking.
 
 ## Documentation
 
 | Doc | What's in it |
 | --- | --- |
-| [docs/usage.md](docs/usage.md) | Step-by-step enrollment walkthrough, scanning tips, submitting to PPL |
+| [docs/usage.md](docs/usage.md) | Step-by-step enrollment walkthrough, submitting to PPL |
 | [docs/architecture.md](docs/architecture.md) | How it works: stack, data flow, module map, design decisions |
 | [docs/forms.md](docs/forms.md) | Per-form field mappings, template quirks, and how to handle form revisions |
-| [docs/id-barcode.md](docs/id-barcode.md) | The license/state-ID barcode: payload format, the traps it has produced, and how to diagnose a scan that won't read |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Scan failures, setup problems, data recovery |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Setup problems, signature and rate issues, data recovery |
 | [docs/editing-completed-pdfs.md](docs/editing-completed-pdfs.md) | Surgically editing a value on an already-filled (Adobe Fill & Sign) PDF outside the app |
 | [docs/whitepaper.md](docs/whitepaper.md) | The reusable local-first form-autofill pattern, and how to extend it to other forms (Medicaid, SNAP) |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes, newest first |
@@ -129,14 +114,26 @@ review them.
 
 ```
 python run.py          # dev server + browser at http://127.0.0.1:5180
-python run.py test     # parser tests + fills every form with sample data
+python run.py test     # smoke test (fills every form) + vault round trip
+python run.py e2e      # browser UI tests (Playwright)
 python run.py build    # static build to dist/
 python run.py serve    # build, then serve the production build
-python run.py install  # npm install / re-vendor assets only
+python run.py install  # npm install only
 ```
 
 The smoke test writes filled PDFs to `tests/out/` (gitignored) so mapping
-changes can be spot-checked visually. The dev port is pinned to 5180 because
+changes can be spot-checked visually.
+
+The browser UI tests (`npx playwright test`, `npm run test:e2e`, or
+`python run.py e2e`) run the production build with `vite preview` on
+127.0.0.1:5181 and drive installed Microsoft Edge (override with
+`CDASS_UI_BROWSER`). They cover typing the details once and reading the
+generated packet and W-4 back, rate validation, persistence, the signature
+consent box, the previous-packet round trip, and axe WCAG 2.2 AA checks on each
+view. Every test fails if any request leaves 127.0.0.1 or the console reports an
+error. Output goes to `test-results/` and `playwright-report/` (gitignored).
+
+The dev port is pinned to 5180 because
 MacroVox's Tauri webview loads its own dev UI from `localhost:5173` and will
 render whatever answers there.
 

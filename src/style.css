@@ -6,6 +6,8 @@
   --line: #dde3ea;
   --accent: #1f6feb;
   --accent-ink: #ffffff;
+  /* --accent as text on --bg is 4.3:1, under WCAG AA; this is 6:1. */
+  --accent-text: #0a58ca;
   --good: #1a7f37;
   --warn: #9a6700;
   --bad: #cf222e;
@@ -43,7 +45,7 @@ header.app h1 { font-size: 1.35rem; margin: 0; }
 
 .settings-toggle { margin-left: auto; align-self: center; }
 button.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 0.35rem 0.7rem; }
-button.btn.ghost:hover { border-color: var(--line); color: var(--accent); }
+button.btn.ghost:hover { border-color: var(--line); color: var(--accent-text); }
 
 .stepintro { margin: 0.5rem 0 0.75rem; }
 .stepintro h2 { font-size: 1.05rem; margin: 0 0 0.2rem; }
@@ -96,9 +98,12 @@ label.field input:disabled, label.field select:disabled { background: #eef1f4; c
 .sigfield { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
 .sigpreview { max-width: 320px; max-height: 90px; border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 4px; }
 
-.scanrow { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-.scanbtn {
-  flex: 1 1 200px;
+.importrow { margin-top: 0.4rem; }
+.importrow summary { cursor: pointer; font-size: 0.9rem; color: var(--accent-text); }
+.importrow[open] summary { margin-bottom: 0.4rem; }
+.filebtn {
+  display: inline-block;
+  width: min(260px, 100%);
   border: 2px dashed var(--line);
   border-radius: 10px;
   padding: 0.9rem;
@@ -106,25 +111,10 @@ label.field input:disabled, label.field select:disabled { background: #eef1f4; c
   cursor: pointer;
   background: #fbfcfe;
 }
-.scanbtn:hover { border-color: var(--accent); }
-/* The import tile sits on its own row: without this it is the only item there
-   and flex-grow stretches it edge to edge, which reads as a layout bug. */
-.scanbtn.narrow { flex: 0 1 260px; }
-.scanrow + .orline { margin: 0.75rem 0 0.35rem; }
-.scanbtn .big { font-size: 1.4rem; display: block; }
-.scanbtn small { color: var(--muted); display: block; margin-top: 0.2rem; }
-.scanbtn input { display: none; }
-
-.croparea { margin-top: 0.6rem; }
-.cropcanvas {
-  display: block;
-  max-width: 100%;
-  margin-top: 0.4rem;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  cursor: crosshair;
-  touch-action: none;
-}
+.filebtn:hover, .filebtn:focus-within { border-color: var(--accent); }
+.filebtn .big { font-size: 1.4rem; display: block; }
+.filebtn small { color: var(--muted); display: block; margin-top: 0.2rem; }
+.filebtn input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 
 .status { margin-top: 0.6rem; font-size: 0.9rem; min-height: 1.3em; }
 .status.ok { color: var(--good); }

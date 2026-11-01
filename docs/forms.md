@@ -31,7 +31,7 @@ sits off its line. Other parties' signature lines are never filled.
 
 The fillers stay dumb about consent: they draw whatever `emp.signature` holds.
 Deciding whether this packet gets the saved signature is `main.js`'s job, and it
-passes an employer with `signature` blanked unless the Step 3 stamp box was
+passes an employer with `signature` blanked unless the Step 2 stamp box was
 ticked for this packet. Keep it that way, or a signature uploaded for one
 person starts riding along on the next one's forms.
 
@@ -174,7 +174,7 @@ Without that flag the W-4 looks empty even though every field is filled.
 The I-9 mapping is its own module because the same USCIS build appears in
 two places with identical field names: embedded in the PPL packet (pages
 19-22) and as the standalone `public/forms/i9.pdf` that PPL links (off by
-default under Step 3, for when PPL requests a separate copy). The
+default under Step 2, for when PPL requests a separate copy). The
 only difference found so far: the standalone's employee State field is a
 dropdown, which `setText` in `util.js` handles transparently.
 
@@ -192,24 +192,6 @@ Authorized Representative`) is written `Last, First, Title` of the employer,
 who in CDASS is the Member. If the employer name is empty it degrades to just
 the title (`Employer`) with no name, an incomplete form PPL bounces, so the
 smoke test now reads it back on both the embedded and standalone copies.
-
-## The license barcode (AAMVA PDF417)
-
-Not a PPL form, but the same shape of problem: an external format whose contract
-this app depends on, where a spec revision or a wrong assumption silently
-produces a half-filled form. It has its own document, because the payload
-structure and the three defects it has already produced need more room than a
-section: **[id-barcode.md](id-barcode.md)**.
-
-The short version, if you are only passing through:
-
-- Element IDs are anchored at the start of their line, never searched for. A
-  state ID's subfile type spells `IDDAQ`, whose `DDA` is a valid element ID one
-  character early, and it eats the license number. Test both card types.
-- zxing must read with `textMode: "Plain"`. Its default mangles the newlines
-  AAMVA separates elements with.
-- Only elements the forms ask for are extracted; whatever a parser returns is
-  persisted into the profile.
 
 ## When a form is revised
 
