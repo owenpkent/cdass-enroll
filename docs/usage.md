@@ -22,13 +22,14 @@ packet, so enter it once:
 - **Employer of record**: whoever signs as the employer. For the I-9 and W-4
   employer blocks, also fill the business/organization name (something like
   "Jane Smith, Household Employer" works), business address, and EIN.
-- **Employer signature** (optional): upload an image of your signature (a phone
-  photo of it on white paper is fine; the app knocks out the background). **Crop
-  it close to the writing.** The image is scaled to the height of the signature
-  line, margin and all, so a wide border around the mark shrinks the mark. The
-  app records whose signature it is (the employer of record at the time of
-  upload) and shows that back in Step 2 before anything is stamped. The
-  attendant and all other parties still sign by hand.
+- **Employer signature** (optional): click **Type or draw** to make one in the
+  app (see Step 2), or **Upload signature image** (a phone photo of your
+  signature on white paper is fine; the app knocks out the background). **Crop an
+  upload close to the writing.** The image is scaled to the height of the
+  signature line, margin and all, so a wide border around the mark shrinks the
+  mark. The app records whose signature it is (the employer of record at the
+  time) and shows that back in Step 2 before anything is stamped. It is kept
+  with your other details, on this computer only.
 
 Everything saves as you type. If `public/seed.local.json` exists (it does on
 the original machine), these fields arrive pre-filled the first time the app
@@ -90,10 +91,27 @@ At the bottom of the page:
 - **Employer signature**: a saved signature is stamped only when you tick
   **Stamp this signature on the employer signature lines**, and the tick clears
   every time the app restarts and whenever you start a new person. The box shows
-  the signature, whose it is, and when it was uploaded, and warns if the
-  employer of record has changed since. Left unticked, every signature line
-  comes out blank for hand signing.
-- Click **Generate & download**. One PDF per selected form lands in
+  the signature, whose it is, and when it was made, and warns if the employer of
+  record has changed since. If none is saved, make one right there: type your
+  name (it is drawn in a handwriting font the computer already has; nothing is
+  downloaded) or draw it on the pad with a mouse, finger or pen. It is saved to
+  Your details, and you still tick the box for each packet. Left unticked, the
+  employer lines come out blank for hand signing.
+- **Attendant signature** (optional): do this only with the attendant present.
+  They type their name (it starts from the name entered in Step 1; edit it if
+  they sign differently) or draw it on the pad, then tick
+  **<Name> agrees to sign this packet with this signature**. This one is never
+  saved: it lasts only until you close or reload the app, **Start over**, begin
+  a new person, or import a previous packet, and making a new signature clears
+  the tick. Untick or leave it out and the attendant lines stay blank.
+- Signatures land on the signer's own lines only: the employer on packet pages
+  8, 11 and 12 and I-9 Section 2; the attendant on pages 8, 10 (direct deposit),
+  11 and 12, I-9 Section 1 and the W-4 Step 5 line. The EVV caregiver lines are
+  optional on that form and stay blank. The Member, FMS vendor, HCPF and any
+  preparer always sign by hand.
+- Click **Generate & download**. The status line says which signatures were
+  placed, and whether an attendant signature you made was left off because it
+  was not ticked. One PDF per selected form lands in
   Downloads, named like `Doe-Jane-CDASS-packet-2026.pdf`. Rates are checked
   first: a rate that is not a plain dollars-and-cents amount (`33.517`) stops
   the packet with a message rather than printing. The app never rounds it for
@@ -107,9 +125,9 @@ printing.
 
 - Review **every page**. The app fills conservatively, but you are the one
   signing.
-- Sign and date by hand wherever a signature is required. If you ticked the
-  stamp box in Step 2, the employer lines are already signed; the attendant and
-  other parties still sign by hand. A few date boxes are
+- Sign and date by hand wherever a signature is still blank. Lines for which
+  you made and ticked a signature in Step 2 are already signed; the Member, FMS
+  vendor, HCPF and any preparer always sign by hand. A few date boxes are
   intentionally left blank because of template quirks; see [forms.md](forms.md).
 - Pages that don't apply (I-9 Supplement A/B, rehire sections) stay blank.
 - Submit per PPL's current instructions. CO CDASS customer service:

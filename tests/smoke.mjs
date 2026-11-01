@@ -96,6 +96,25 @@ const ADDED = 1 + V3_ADDED_FIELDS.length;
   );
 }
 
+// Each signature lands on its own signer's lines and nowhere else: the employer
+// on pages 8, 11, 12 and the I-9 Section 2 (20); the attendant on 8, 10, 11, 12
+// and the I-9 Section 1 (20). Counted as images drawn per page against an
+// unsigned fill, so a placement on the wrong page fails.
+{
+  const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const xobjects = async (bytes) =>
+    (await PDFDocument.load(bytes)).getPages().map((pg) => pg.node.Resources()?.lookup(PDFName.of("XObject"))?.keys().length ?? 0);
+  const pagesWithNew = (base, signed) => signed.map((n, i) => (n > base[i] ? i + 1 : 0)).filter(Boolean);
+  const base = await xobjects(p26);
+  const emp = pagesWithNew(base, await xobjects(await fillPacket2026(packet2026Src, profile, { ...employer, signature: tinyPng }, opts)));
+  expect("employer signature: pages 8, 11, 12, 20 only", JSON.stringify(emp) === "[8,11,12,20]", JSON.stringify(emp));
+  const att = pagesWithNew(base, await xobjects(await fillPacket2026(packet2026Src, profile, employer, { ...opts, attendantSignature: tinyPng })));
+  expect("attendant signature: pages 8, 10, 11, 12, 20 only", JSON.stringify(att) === "[8,10,11,12,20]", JSON.stringify(att));
+  const w4Base = await xobjects(w4Bytes);
+  const w4Att = pagesWithNew(w4Base, await xobjects(await fillW4(readFileSync(new URL("../public/forms/w4.pdf", import.meta.url)), profile, employer, { ...opts, attendantSignature: tinyPng })));
+  expect("attendant signature: W-4 Step 5 on page 1", JSON.stringify(w4Att) === "[1]", JSON.stringify(w4Att));
+}
+
 // Values must actually land in the named boxes. Structural checks above pass
 // even when every mapped name has drifted, so check every field the fixture
 // lists, blanks included.

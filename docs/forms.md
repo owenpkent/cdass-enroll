@@ -64,17 +64,34 @@ shared it with its page 7). Widgets are 14pt tall so auto-size text fits.
 Output field count = template + 1 (page 9 mailing State split) + 3
 (`V3_ADDED_FIELDS`).
 
-The employer signature lines on pages 8, 11, 12 have no form field, so when
-`emp.signature` (an uploaded PNG data URL) is present it is drawn onto those
-pages and the I-9 Section 2 line as an image overlay. Coordinates are the
-`EMPLOYER_SIGNATURE` table in `packet2026.js`; nudge them there if a signature
-sits off its line. Other parties' signature lines are never filled.
+Signature lines have no form field, so signatures are drawn as image overlays
+(a transparent PNG cropped to the ink) at the coordinates in the
+`EMPLOYER_SIGNATURE` and `ATTENDANT_SIGNATURE` tables in `packet2026.js` (and the
+overlays in `i9.js` and `w4.js`); nudge them there if a signature sits off its
+line. A signature is only ever placed on its own signer's lines:
 
-The fillers stay dumb about consent: they draw whatever `emp.signature` holds.
-Deciding whether this packet gets the saved signature is `main.js`'s job, and it
-passes an employer with `signature` blanked unless the Step 2 stamp box was
-ticked for this packet. Keep it that way, or a signature uploaded for one
-person starts riding along on the next one's forms.
+| Signer | Where | Source |
+| --- | --- | --- |
+| Employer | packet pages 8, 11, 12 and I-9 Section 2 (page 20); standalone I-9 Section 2 | `emp.signature`, standing data |
+| Attendant | packet pages 8, 10 (direct deposit), 11, 12 and I-9 Section 1 (page 20); standalone I-9 Section 1; W-4 Step 5 | made in Step 2, memory only |
+| Member, FMS vendor, HCPF, preparer | never | sign by hand |
+
+The EVV caregiver lines are not filled: that form marks the caregiver signature
+optional.
+
+Signatures can be made in the app by typing (rendered in a handwriting font the
+computer already has: Segoe Script, Ink Free, Lucida Handwriting, Brush Script
+MT, then the browser's `cursive`; nothing is bundled or downloaded) or by
+drawing on a pad (`src/sigpad.js`). Either way the output is the same shape as a
+cleaned uploaded image.
+
+The fillers stay dumb about consent: they draw whatever signature they are
+given. Deciding whether this packet gets it is `main.js`'s job. The employer's
+saved signature is blanked unless the Step 2 stamp box was ticked for this
+packet. The attendant's made signature is passed only while its own "agrees to
+sign this packet" tick is set; it is never stored, and the tick clears whenever
+a new signature is made. Keep it that way, or a signature made for one person
+starts riding along on the next one's forms.
 
 **Crop the signature image to the ink, or the mark comes out small.**
 `overlaySignature` scales the image to the placement box's *height* (22pt on the
