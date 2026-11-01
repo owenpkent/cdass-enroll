@@ -100,6 +100,9 @@ label.field input:disabled, label.field select:disabled { background: #eef1f4; c
 .sigmaker { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.4rem 0 0.8rem; }
 .sigmaker [aria-pressed="true"] { border-color: var(--accent-text); color: var(--accent-text); }
 .sigpane { display: flex; flex-direction: column; gap: 0.4rem; }
+/* display: flex above would otherwise override the hidden attribute, leaving the
+   inactive pane on screen while "Use this signature" reads the other one. */
+.sigpane[hidden] { display: none; }
 .sigcanvas { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .sigpad { cursor: crosshair; touch-action: none; }
 

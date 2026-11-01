@@ -46,6 +46,15 @@ const checked = (form, name) => {
   }
 };
 
+/** The first of several fields that holds a value, or "". */
+const firstText = (form, names) => {
+  for (const name of names) {
+    const v = text(form, name);
+    if (v) return v;
+  }
+  return "";
+};
+
 /** First value whose box is checked, or "" if none are. */
 const pick = (form, pairs) => {
   for (const [name, value] of pairs) if (checked(form, name)) return value;
@@ -102,6 +111,13 @@ export async function readFilledPacket(bytes) {
     put(f.on === "emp" ? employer : profile, f.key, f.from ? f.from(raw) : raw);
   }
 
+  // V.3 gives page 2 its own Member PPL ID and Member and Employer name boxes,
+  // separate from the headers repeated on later pages. A packet finished by
+  // hand can have one filled and not the other, so take whichever has a value,
+  // page 2 first.
+  const enrollment = (v3Name, header) => (v3 ? [v3Name, header] : [header]);
+  put(employer, "memberPplId", firstText(form, enrollment(PAGE2.memberPplId, "Member PPL ID")));
+
   // ---- Name ----
   // The packet writes the attendant's name as one composite line, but the
   // embedded I-9 keeps first/middle/last in separate boxes. Read those instead
@@ -120,12 +136,12 @@ export async function readFilledPacket(bytes) {
     if (middle) profile.middle = middle;
   }
 
-  const member = splitName(text(form, pg2(PAGE2.memberName, "Member Name: first and last")));
+  const member = splitName(firstText(form, enrollment(PAGE2.memberName, "Member Name: first and last")));
   if (member) {
     put(employer, "memberFirst", member.first);
     put(employer, "memberLast", member.last);
   }
-  const boss = splitName(text(form, "Employer Name: first and last"));
+  const boss = splitName(firstText(form, enrollment(PAGE2.employerName, "Employer Name: first and last")));
   if (boss) {
     put(employer, "employerFirst", boss.first);
     put(employer, "employerLast", boss.last);

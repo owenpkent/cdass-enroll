@@ -90,3 +90,73 @@ test("Start over drops the attendant signature", async ({ page }) => {
   await expect(page.getByRole("img", { name: "Attendant signature", exact: true })).toHaveCount(0);
   await expect(page.getByText(/agrees to sign this packet/)).toHaveCount(0);
 });
+
+// A fixture packet filled by the real filler, for import tests.
+async function fixturePacket(testInfo) {
+  const { readFile, writeFile } = await import("node:fs/promises");
+  const { fillPacket2026 } = await import("../src/fill/packet2026.js");
+  const { PROFILE, EMPLOYER, OPTS } = await import("../tests/fixtures/complete-packet.mjs");
+  const bytes = await fillPacket2026(await readFile("public/forms/CO-CDASS-Attendant-Packet-2026.pdf"), PROFILE, EMPLOYER, OPTS);
+  const path = testInfo.outputPath("jane-packet.pdf");
+  await writeFile(path, bytes);
+  return path;
+}
+
+async function importPacket(page, path) {
+  await page.getByText("Optional: start from a packet you already filled").click();
+  await page.locator('input[type="file"]').setInputFiles(path);
+  await expect(page.getByText(/^Previous packet: filled \d+ fields/)).toBeVisible();
+}
+
+test("importing a packet replaces the previous person's signature and name", async ({ page }, testInfo) => {
+  const path = await fixturePacket(testInfo);
+  await openApp(page);
+  await field(page, "first").fill("Alice");
+  await field(page, "last").fill("Smith");
+  await attendant(page).getByRole("button", { name: "Use this signature" }).click();
+  await page.getByLabel("Alice Smith agrees to sign this packet with this signature").check();
+
+  await importPacket(page, path);
+  await expect(field(page, "first")).toHaveValue("Jane");
+  // Alice's signature and her agreement are gone; the maker offers Jane's name.
+  await expect(page.getByRole("img", { name: "Attendant signature", exact: true })).toHaveCount(0);
+  await expect(page.getByText(/agrees to sign this packet/)).toHaveCount(0);
+  await expect(attendant(page).getByLabel("Type the attendant signature")).toHaveValue("Jane Doe");
+  await expect(attendant(page).getByRole("button", { name: "Use this signature" })).toBeEnabled();
+});
+
+test("on a fresh page, an import fills both signature makers' names", async ({ page }, testInfo) => {
+  const path = await fixturePacket(testInfo);
+  await openApp(page);
+  await importPacket(page, path);
+  await expect(attendant(page).getByLabel("Type the attendant signature")).toHaveValue("Jane Doe");
+  // Your details were empty, so the packet's employer seeded them.
+  await expect(employerSig(page).getByLabel("Type the employer signature")).toHaveValue("Owen Kent");
+});
+
+test("only the active signature pane is shown, and it is the one used", async ({ page }) => {
+  await openApp(page);
+  await enterAttendant(page);
+  const typedBox = attendant(page).getByLabel("Type the attendant signature");
+  const pad = attendant(page).getByRole("img", { name: "Drawing area for the attendant signature" });
+  await expect(typedBox).toBeVisible();
+  await expect(pad).toBeHidden();
+
+  // The typed signature, for comparison.
+  await attendant(page).getByRole("button", { name: "Use this signature" }).click();
+  const typedPng = await page.getByRole("img", { name: "Attendant signature", exact: true }).getAttribute("src");
+  await page.getByRole("button", { name: "Remove" }).click();
+
+  await attendant(page).getByRole("button", { name: "Draw", exact: true }).click();
+  await expect(typedBox).toBeHidden();
+  await expect(pad).toBeVisible();
+  const box = await pad.boundingBox();
+  await page.mouse.move(box.x + 30, box.y + 60);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 300, box.y + 30, { steps: 8 });
+  await page.mouse.up();
+  await attendant(page).getByRole("button", { name: "Use this signature" }).click();
+  const drawnPng = await page.getByRole("img", { name: "Attendant signature", exact: true }).getAttribute("src");
+  expect(drawnPng).toMatch(/^data:image\/png;base64,/);
+  expect(drawnPng).not.toBe(typedPng);
+});

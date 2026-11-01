@@ -286,6 +286,23 @@ expect("standalone I-9 filled and saved", i9Bytes.length > 50000, String(i9Bytes
     expect("import: a packet filled from the July 2025 (V.2) revision still reads", off.length === 0 && v2.employer.memberFirst === "Owen", off.join("; "));
   }
 
+  // A V.3 packet finished by hand may fill only page 2's own Member ID and
+  // Member/Employer name boxes and leave the repeated headers on later pages
+  // blank. Those page 2 values must still import.
+  {
+    const doc = await PDFDocument.load(packet2026Src);
+    const form = doc.getForm();
+    form.getTextField("Text1").setText("Taylor Smith");
+    form.getTextField("Text2").setText("Alex Johnson");
+    form.getTextField("Text3").setText("MEM-123");
+    const got = (await readFilledPacket(await doc.save())).employer;
+    expect(
+      "import: V.3 page 2 Member ID and Member/Employer names read without the later headers",
+      got.memberPplId === "MEM-123" && got.memberFirst === "Alex" && got.memberLast === "Johnson" && got.employerFirst === "Taylor" && got.employerLast === "Smith",
+      JSON.stringify(got)
+    );
+  }
+
   let rejected = false;
   try {
     await readFilledPacket(w4Bytes);
