@@ -137,9 +137,16 @@ The browser UI tests (`npx playwright test`, `npm run test:e2e`, or
 127.0.0.1:5181 and drive installed Microsoft Edge (override with
 `CDASS_UI_BROWSER`). They cover typing the details once and reading the
 generated packet and W-4 back, rate validation, persistence, signature making
-and consent (employer and attendant), the previous-packet round trip, and axe WCAG 2.2 AA checks on each
-view. Every test fails if any request leaves 127.0.0.1 or the console reports an
-error. Output goes to `test-results/` and `playwright-report/` (gitignored).
+and consent (employer and attendant), importing a previous packet (including
+that it replaces the previous person's signature), and axe WCAG 2.2 AA checks on
+each view. Every test fails if any request leaves 127.0.0.1 or the console
+reports an error.
+
+To see the results, run `npx playwright show-report`, or open
+`playwright-report/index.html`. Each test shows its steps, plus a screenshot
+and trace when it fails. For a screenshot of every test, pass or fail, run with
+`CDASS_UI_SHOTS=1` (PowerShell: `$env:CDASS_UI_SHOTS=1; python run.py e2e`).
+`test-results/` and `playwright-report/` are gitignored.
 
 The dev port is pinned to 5180 because
 MacroVox's Tauri webview loads its own dev UI from `localhost:5173` and will

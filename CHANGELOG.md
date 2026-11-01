@@ -28,7 +28,10 @@ below as 0.1.0, and work since then sits under Unreleased.
   "agrees to sign" tick, and is placed on packet pages 8, 10, 11, 12 and I-9
   Section 1 (also standalone) and W-4 Step 5. Generate reports which signatures
   were placed. `tests/smoke.mjs` checks each lands only on its signer's pages;
-  `e2e/signatures.spec.mjs` adds UI coverage (14 UI tests).
+  `e2e/signatures.spec.mjs` adds UI coverage.
+- **UI test report.** Every Playwright run writes an HTML report
+  (`npx playwright show-report`); `CDASS_UI_SHOTS=1` keeps a full-page
+  screenshot of every test. The UI suite is 17 tests.
 - **Shared complete-packet fixture.** `tests/fixtures/complete-packet.mjs` holds one
   fictional attendant (Jane Doe), Member/employer and generate options, plus
   `EXPECTED_PACKET`, 109 field -> value pairs (blanks and unchecked boxes included)
@@ -42,6 +45,20 @@ below as 0.1.0, and work since then sits under Unreleased.
   blocking Generate, Your details persisting across reload while the attendant does
   not, the signature not stamping without the tick, the previous-packet round trip,
   axe WCAG 2.2 AA on each view, and keyboard reach of the import picker.
+
+#### Fixed
+- **Importing a packet kept the previous person's signature.** The signature
+  makers were rebuilt before the imported names landed, so the attendant maker
+  still offered the old name and could produce that person's signature under
+  the new person's consent box. The import now applies the profile and standing
+  details first, then clears the attendant signature and both ticks.
+- **A drawing could be discarded.** `.sigpane { display: flex }` overrode the
+  `hidden` attribute, so both panes showed in either mode and a drawing made in
+  Type mode was replaced by the typed name. Hidden panes are now
+  `display: none`.
+- **V.3 imports could miss the employer name and Member PPL ID.** They were read
+  only from the headers repeated on later pages; page 2's own boxes (`Text1`,
+  `Text2`, `Text3`) are now read first, with the headers as fallback.
 
 #### Changed
 - **Signature policy.** The attendant no longer signs only by hand: a signature

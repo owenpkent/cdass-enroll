@@ -57,6 +57,11 @@ import the tax, live-in, or work-authorization answers: those are attestations
 the signer makes, so set them yourself each time. Imported values flash yellow;
 check each one.
 
+It reads packets filled from either version of the enrollment form: the current
+V.3 (June 2026) or the older V.2 (July 2025). A scanned or flattened PDF (one
+with no fillable fields left, such as a printed-and-scanned copy) cannot be read
+back; type those details in instead.
+
 Then work down the rest of the sections. The Member and employer fields come
 from Your details:
 

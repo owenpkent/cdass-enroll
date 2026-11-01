@@ -177,11 +177,16 @@ run.py                   Launcher: install-if-needed, dev/test/build/serve
   ever see the fictional Jane Doe.
 - `tests/smoke.mjs` also checks each signature lands only on its signer's pages
   (image count per page against an unsigned fill).
-- Coverage (14 UI tests): no scan UI exists; type once, generate, and read the packet and W-4
+- Coverage (17 UI tests): no scan UI exists; type once, generate, and read the packet and W-4
   back with pdf-lib; a malformed rate blocks Generate; Your details persist
   across reload while the attendant does not; nothing is signed until a
   signature is made and ticked; the typed attendant name follows Step 1; a typed
   attendant signature is placed only after its tick (packet pages 8, 10, 11, 12,
   20 and W-4 page 1); a drawn employer signature is saved across reload while its
-  tick is not; Start over drops the attendant signature; the previous-packet import round trip; axe WCAG 2.2 AA on
-  each view; keyboard reach of the import picker.
+  tick is not; Start over drops the attendant signature; the previous-packet
+  import round trip; importing a packet clears the previous person's attendant
+  signature and both ticks and offers the imported names to both signature
+  makers; only the active Type/Draw pane shows, and it is the one used; axe
+  WCAG 2.2 AA on each view; keyboard reach of the import picker.
+- Every run writes an HTML report (`npx playwright show-report`); set
+  `CDASS_UI_SHOTS=1` to keep a full-page screenshot of every test.
