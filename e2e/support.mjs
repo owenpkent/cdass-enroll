@@ -11,7 +11,8 @@
 import { test as base, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
-import { PDFDocument, PDFCheckBox, PDFTextField } from "pdf-lib";
+import { inflateSync } from "node:zlib";
+import { PDFDocument, PDFCheckBox, PDFTextField, PDFArray, PDFRawStream } from "pdf-lib";
 
 export { expect };
 
@@ -131,6 +132,35 @@ export function allText(doc) {
     .filter((f) => f instanceof PDFTextField)
     .map((f) => f.getText())
     .filter(Boolean);
+}
+
+/** The trailer /ID of a PDF as hex, both halves joined by "|". */
+export function documentId(doc) {
+  return doc.context.trailerInfo.ID?.asArray().map((s) => s.asString()).join("|") ?? "";
+}
+
+/**
+ * Whether `text` is drawn on a page (not in a form field): pdf-lib writes
+ * standard-font text as a hex string, so look for that in the page's content
+ * streams.
+ */
+export function pageDraws(doc, pageIndex, text) {
+  const node = doc.getPage(pageIndex).node;
+  const contents = node.Contents();
+  const streams = contents instanceof PDFArray ? contents.asArray().map((r) => node.context.lookup(r)) : [contents];
+  const ops = streams
+    .filter((s) => s instanceof PDFRawStream)
+    .map((s) => {
+      const raw = Buffer.from(s.getContents());
+      try {
+        return inflateSync(raw).toString("latin1");
+      } catch {
+        return raw.toString("latin1");
+      }
+    })
+    .join("\n")
+    .toUpperCase();
+  return ops.includes(`<${Buffer.from(text, "latin1").toString("hex").toUpperCase()}>`);
 }
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];

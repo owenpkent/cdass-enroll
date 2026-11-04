@@ -130,10 +130,11 @@ printing.
 
 - Review **every page**. The app fills conservatively, but you are the one
   signing.
-- Sign and date by hand wherever a signature is still blank. Lines for which
-  you made and ticked a signature in Step 2 are already signed; the Member, FMS
-  vendor, HCPF and any preparer always sign by hand. A few date boxes are
-  intentionally left blank because of template quirks; see [forms.md](forms.md).
+- Sign by hand wherever a signature is still blank. Lines for which you made
+  **and ticked** a signature in Step 2 are already signed: a signature you made
+  but did not tick is left off. Every attendant and employer signature line,
+  including the W-4 Step 5 Date, is already dated with the signature date. The
+  Member, FMS vendor, HCPF and any preparer always sign and date by hand.
 - Pages that don't apply (I-9 Supplement A/B, rehire sections) stay blank.
 - Submit per PPL's current instructions. CO CDASS customer service:
   1-888-752-8250, ppcdass@pplfirst.com. EVV help desk: 833-204-9041,

@@ -14,6 +14,8 @@ import {
   generate,
   readFields,
   allText,
+  documentId,
+  pageDraws,
 } from "./support.mjs";
 
 const PACKET = "Doe-Jane-CDASS-packet-2026.pdf";
@@ -58,6 +60,23 @@ test("entered once, the details fill every field of the packet", async ({ page }
   const w4 = allText(files[W4].doc);
   expect(w4).toEqual(expect.arrayContaining(["Jane M", "Doe", "123-45-6789"]));
   expect(w4.join(" ")).toContain("1234 Main St");
+  // The W-4 has no Date field: the signature date is drawn on the Step 5 line.
+  expect(pageDraws(files[W4].doc, 0, "06/11/2026")).toBe(true);
+});
+
+test("every download is its own document, not a copy of the template's identity", async ({ page }) => {
+  // Viewers file their own annotations under the PDF's /ID. A shared ID put a
+  // signature added in the viewer to one person's W-4 onto every later W-4.
+  await openApp(page);
+  await enterAttendant(page);
+  const first = await generate(page, 2);
+  const second = await generate(page, 2);
+  for (const name of [PACKET, W4]) {
+    const a = documentId(first[name].doc);
+    const b = documentId(second[name].doc);
+    expect(a, name).not.toBe("");
+    expect(a.split("|")[0], name).not.toBe(b.split("|")[0]);
+  }
 });
 
 test("a rate that is not dollars and cents blocks Generate", async ({ page }) => {

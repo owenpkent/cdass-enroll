@@ -32,9 +32,12 @@ template revision renamed it; see "When a form is revised" in
 
 **A date box near a signature is blank**
 
-Some are intentional. The 2026 packet's Direct Deposit date (page 10) shares a PDF
-field with the EVV vendor date, so it is left for hand-dating. Lines for
-the Member, FMS vendor, HCPF and a preparer are never filled by design.
+Every attendant and employer signature line is dated with the **Signature
+date** from Step 2, including the Direct Deposit date (page 10) and the W-4
+Step 5 Date, which the W-4 has no field for. Packets made before 2026-11-03
+left those two blank: regenerate them. Lines for the Member, FMS vendor
+(including its date on the EVV form, page 15), HCPF and a preparer are never
+filled by design.
 
 **The attendant signature is missing from the packet**
 
@@ -87,6 +90,16 @@ fraction of the line. Re-upload it cropped tight to the writing; roughly 6:1 fil
 a packet line the way a real signature does. This bites hardest on an image
 lifted out of another PDF, which carries that document's placement box as
 padding. Details in [forms.md](forms.md).
+
+**Another person's signature shows on a form in Folio or another viewer**
+
+The PDF itself is clean; the viewer is drawing something saved for a different
+file. Some viewers (Folio, anything built on PDF.js) keep signatures and edits
+you add in them under the PDF's internal document ID. Forms generated before
+2026-11-03 all kept the blank template's ID, so a signature placed on one
+person's W-4 in the viewer reappeared on every later W-4. Each generated form
+now gets its own random ID. Regenerate older forms, and clear the stale
+annotations in the viewer if it offers that.
 
 **Values look right in the app but the printed PDF shows old data**
 

@@ -141,7 +141,10 @@ Encryption at rest is on this list, not above it:
    multi-client deployment.
 5. **Output handling.** Tell the operator exactly what is in each generated PDF,
    offer to clear the data behind it, and treat the Downloads copy as the
-   sensitive artifact it is.
+   sensitive artifact it is. Each generated PDF carries a fresh random trailer
+   `/ID` (`saveAsNewDocument`), so two people's forms cannot be tied together
+   by ID, and a viewer that stores annotations per ID cannot lay one person's
+   signature over another person's form.
 
 The single-user design target needs only full-disk encryption and the existing
 clear-on-close behavior: the person is wiped when the tab closes and again each

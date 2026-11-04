@@ -7,6 +7,25 @@ below as 0.1.0, and work since then sits under Unreleased.
 
 ## [Unreleased]
 
+### 2026-11-03
+
+#### Fixed
+
+- **A signature placed in a PDF viewer reappeared on other people's forms.**
+  pdf-lib kept the blank template's trailer `/ID`, so every generated W-4,
+  packet and I-9 shared one document identity. Viewers that file their own
+  annotations under that ID (PDF.js fingerprints; Folio's placed signatures)
+  drew a signature added to one person's W-4 over every later W-4. Every filler
+  now saves through `saveAsNewDocument` (`src/fill/util.js`), which writes a
+  fresh random `/ID`, so forms are also no longer linkable to each other by ID.
+- **The W-4 Step 5 Date was blank.** The W-4 has no Date field, so the signature
+  date is now drawn on the Date line.
+- **The Direct Deposit signature date (page 10) was blank.** Its `Date` field is
+  shared with the FMS vendor's date on the EVV form, so it was left for
+  hand-dating. The page 10 widget is now split into its own field,
+  `Direct deposit attendant signature date`, and filled; the vendor's date stays
+  blank.
+
 ### 2026-11-01
 
 #### Removed
