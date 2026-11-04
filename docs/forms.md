@@ -228,6 +228,11 @@ The filler detects the layout by whether `f1_08` exists, so either era of
 W-4 dropped onto `public/forms/w4.pdf` fills correctly. Filing status is
 three sibling checkboxes (`c1_1[0..2]`), not a radio group.
 
+**Step 5 has no fields.** Neither the employee signature nor its Date is a
+form field. The attendant signature is overlaid at (104, 92), and the
+signature date is drawn as text at (465, 93) on the Date line (x 460-576,
+y 90) whenever a signature date is set, like the packet's printed dates.
+
 **XFA quirk.** The W-4 is an XFA form. pdf-lib strips the XFA and writes the
 values, but Adobe then ignores the generated appearance streams and shows the
 form blank. The filler sets `NeedAppearances` true so the viewer draws the

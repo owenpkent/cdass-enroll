@@ -11,6 +11,7 @@ if (!globalThis.crypto) globalThis.crypto = { randomUUID };
 import { fillPacket2026 } from "../src/fill/packet2026.js";
 import { fillI9Standalone } from "../src/fill/i9.js";
 import { fillW4 } from "../src/fill/w4.js";
+import { fmtDate } from "../src/fill/util.js";
 import { V3_ADDED_FIELDS } from "../src/fill/packet2026.js";
 import { PROFILE, EMPLOYER, OPTS, EXPECTED_PACKET } from "./fixtures/complete-packet.mjs";
 
@@ -113,6 +114,23 @@ const ADDED = 1 + V3_ADDED_FIELDS.length;
   const w4Base = await xobjects(w4Bytes);
   const w4Att = pagesWithNew(w4Base, await xobjects(await fillW4(readFileSync(new URL("../public/forms/w4.pdf", import.meta.url)), profile, employer, { ...opts, attendantSignature: tinyPng })));
   expect("attendant signature: W-4 Step 5 on page 1", JSON.stringify(w4Att) === "[1]", JSON.stringify(w4Att));
+  // The W-4 has no Date field; the signature date is drawn on the Step 5 line.
+  {
+    const { inflateSync } = await import("node:zlib");
+    const { PDFArray, PDFRawStream } = await import("pdf-lib");
+    const page0 = (await PDFDocument.load(w4Bytes)).getPage(0).node;
+    const contents = page0.Contents();
+    const streams = contents instanceof PDFArray ? contents.asArray().map((r) => page0.context.lookup(r)) : [contents];
+    const text = streams
+      .filter((s) => s instanceof PDFRawStream)
+      .map((s) => {
+        const raw = Buffer.from(s.getContents());
+        try { return inflateSync(raw).toString("latin1"); } catch { return raw.toString("latin1"); }
+      })
+      .join("\n");
+    const hex = Buffer.from(fmtDate(opts.signatureDate), "latin1").toString("hex").toUpperCase();
+    expect("W-4 Step 5 date is drawn", text.toUpperCase().includes(`<${hex}>`), fmtDate(opts.signatureDate));
+  }
 }
 
 // Values must actually land in the named boxes. Structural checks above pass

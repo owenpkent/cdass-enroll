@@ -5,7 +5,7 @@
 // whether f1_08 exists (2024+) and map accordingly, so a future-year W-4
 // dropped into public/forms/w4.pdf keeps working either way.
 
-import { PDFDocument, PDFName, PDFBool } from "pdf-lib";
+import { PDFDocument, PDFName, PDFBool, StandardFonts, rgb } from "pdf-lib";
 import { bySuffix, fmtDate, fmtSsn, overlaySignature, saveAsNewDocument } from "./util.js";
 import { normalizeMoney } from "../schema.js";
 
@@ -89,5 +89,13 @@ export async function fillW4(templateBytes, p, emp, opts) {
   // Step 5 employee signature line, only with a signature the attendant agreed
   // to here. The line sits above its label, left of the Date box at x 463.
   await overlaySignature(doc, opts.attendantSignature, [{ page: 0, x: 104, y: 92, w: 340, h: 16 }]);
+  // Step 5 Date. The W-4 has no field for it, so it is drawn on the line
+  // (x 460-576, y 90), like the packet's printed signature dates: whenever a
+  // signature date is set, signed in the app or not.
+  const date = fmtDate(opts.signatureDate);
+  if (date) {
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    doc.getPage(0).drawText(date, { x: 465, y: 93, size: 10, font, color: rgb(0, 0, 0) });
+  }
   return saveAsNewDocument(doc);
 }
