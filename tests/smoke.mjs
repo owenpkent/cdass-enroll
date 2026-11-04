@@ -73,15 +73,16 @@ expect("2026 packet filled and saved", p26.length > 100000, String(p26.length));
 
 // The output must stay an exact, editable copy of the packet: same pages, same
 // live form fields (not flattened), just with values filled in. ADDED counts the
-// fields the filler adds: the page 9 mailing State split off its shared field,
-// and the V.2 fields V.3 dropped (text-me boxes, employer printed name).
-const ADDED = 1 + V3_ADDED_FIELDS.length;
+// fields the filler adds: the page 9 mailing State and the page 10 attendant
+// Date, each split off a shared field, and the V.2 fields V.3 dropped (text-me
+// boxes, employer printed name).
+const ADDED = 2 + V3_ADDED_FIELDS.length;
 {
   const tmpl = await PDFDocument.load(packet2026Src);
   const out = await PDFDocument.load(p26);
   expect("packet output keeps every page (exact copy)", out.getPageCount() === tmpl.getPageCount(), `${out.getPageCount()} vs ${tmpl.getPageCount()}`);
   const nOut = out.getForm().getFields().length, nTmpl = tmpl.getForm().getFields().length;
-  expect("packet fields stay editable (not flattened)", nOut === nTmpl + ADDED && nOut > 0, `${nOut} vs ${nTmpl} (+${ADDED}: page 9 mailing State split off its shared field, plus the fields V.3 dropped)`);
+  expect("packet fields stay editable (not flattened)", nOut === nTmpl + ADDED && nOut > 0, `${nOut} vs ${nTmpl} (+${ADDED}: page 9 State and page 10 Date split off shared fields, plus the fields V.3 dropped)`);
 }
 
 // An uploaded employer signature must overlay without changing pages or fields.

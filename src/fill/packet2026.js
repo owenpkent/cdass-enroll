@@ -16,8 +16,8 @@
 // - Routing and account numbers on the Direct Deposit page are one box per
 //   digit ("Routing number 1".."9", "Account number 1".."13").
 // - The direct-deposit attendant signature date field ("Date") is shared with
-//   the FMS-vendor signature date on the EVV exemption form, so we leave it
-//   blank; the attendant dates it by hand when signing.
+//   the FMS-vendor signature date on the EVV exemption form, so the page 10
+//   widget is split into its own field before filling (see fillPacket2026).
 // - The EVV Attestation of Exemption (pages 13-18, fields only on 14-16) is
 //   only relevant for
 //   live-in caregivers; we fill it only when the profile says live-in, and
@@ -157,6 +157,10 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
   // writing it would overwrite the I-9 state. Give it its own field first (this
   // must happen before getForm() so the form sees the new field).
   splitWidgetToOwnField(doc, 8, "State", "Payment mailing State");
+  // Page 10's attendant signature "Date" is one field with the FMS vendor's
+  // date on the EVV form (page 15), which the vendor fills. Split it the same
+  // way so the attendant's date can be printed without dating the vendor's.
+  splitWidgetToOwnField(doc, 9, "Date", "Direct deposit attendant signature date");
   const form = doc.getForm();
   addV3Fields(doc, form);
   const sig = fmtDate(opts.signatureDate);
@@ -236,7 +240,7 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
     setText(form, "County", mail.county);
   }
   check(form, "Send my pay stub in the mail", p.paperPayStub);
-  // Page 10 "Date" is shared with the EVV vendor-signature date; left blank on purpose.
+  setText(form, "Direct deposit attendant signature date", sig);
   setText(form, "Attendant Printed Name, first and last", firstLast);
 
   // ---- Page 11: Services and rates ----

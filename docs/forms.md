@@ -147,7 +147,9 @@ Quirks of the original PDF (not bugs in this app):
   mapping it.
 - **Shared "Date" field.** The attendant signature date on the Direct Deposit
   page (10) is the same PDF field as the FMS-vendor signature date on the EVV
-  exemption form, so the app leaves it blank. Date it by hand when signing.
+  exemption form (page 15). `fillPacket2026` splits the page 10 widget into
+  its own field, `Direct deposit attendant signature date`, and prints the
+  signature date there; the vendor's date on page 15 stays blank.
 - **Per-digit bank boxes.** Routing/account numbers are 9 and 13 individual
   one-character fields ("Routing number 1".."9", "Account number 1".."13").
 - **EVV exemption City/State/ZIP are shared with the I-9 employee address.**

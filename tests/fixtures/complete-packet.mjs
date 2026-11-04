@@ -102,7 +102,8 @@ export const EXPECTED_PACKET = {
   ...digits("Account number", "9876543210", 13),
   "Attendant Printed Name, first and last": "Jane Doe",
   "Attendant PPL ID": "ATT-001",
-  Date: "", // shared with the EVV vendor date, so the attendant dates it by hand
+  "Direct deposit attendant signature date": "06/11/2026", // split from the EVV vendor date
+  Date: "", // now only the EVV vendor's date on page 15, which the vendor fills
 
   // ---- Page 11: Services and Rates, table 1 (CDASS) ----
   "Attendant Name: first and last": "Jane Doe",
