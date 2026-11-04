@@ -1,7 +1,23 @@
 // Tolerant helpers around pdf-lib's form API: a missing or renamed field in a
 // future template revision should degrade to a skipped field, not a crash.
 
-import { PDFName, PDFString, PDFArray, PDFDict, PDFRef } from "pdf-lib";
+import { PDFName, PDFString, PDFArray, PDFDict, PDFRef, PDFHexString } from "pdf-lib";
+
+/**
+ * Save a filled form under a new document identity. pdf-lib keeps the
+ * template's trailer /ID, so every W-4 (or packet, or I-9) would otherwise share
+ * one ID with the blank template and with every other person's form. PDF
+ * viewers key per-document state by that ID: PDF.js derives its fingerprint
+ * from it, and Folio stores signatures and edits placed in it under that
+ * fingerprint, so one person's signature showed up on the next person's W-4.
+ * Both halves are fresh random bytes, so a filled form also cannot be linked
+ * back to other people's forms by its ID.
+ */
+export function saveAsNewDocument(doc) {
+  const hex = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+  doc.context.trailerInfo.ID = doc.context.obj([PDFHexString.of(hex()), PDFHexString.of(hex())]);
+  return doc.save();
+}
 
 export function setText(form, name, value) {
   if (value == null || value === "") return;

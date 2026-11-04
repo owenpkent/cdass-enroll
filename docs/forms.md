@@ -6,6 +6,13 @@ when PPL or the IRS revises a template, names change and mappings must be
 re-checked. This file records what each mapping covers, the quirks baked
 into the original PDFs, and the revision workflow.
 
+Every filler saves through `saveAsNewDocument` (`src/fill/util.js`), which
+gives the output a fresh random trailer `/ID`. pdf-lib otherwise keeps the
+template's ID, so every person's W-4 shared one identity with the blank form,
+and PDF viewers that key saved state by it (PDF.js fingerprints, Folio's
+per-document signatures and edits) laid one person's signature over the next
+person's form. Keep it on any new filler.
+
 ## CO-CDASS-Attendant-Packet-2026 (current): `src/fill/packet2026.js`
 
 Source: "CO-CDASS-Attendant-Packet-2026-CFC-and-Waiver-Update" from the PPL

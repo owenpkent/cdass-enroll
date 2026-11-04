@@ -25,7 +25,7 @@
 //   (consistent, since a live-in attendant shares the Member's address).
 
 import { PDFDocument } from "pdf-lib";
-import { setText, check, selectButton, splitWidgetToOwnField, fmtDate, fmtSsn, isoDate, ssnDigits, overlaySignature } from "./util.js";
+import { setText, check, selectButton, splitWidgetToOwnField, fmtDate, fmtSsn, isoDate, ssnDigits, overlaySignature, saveAsNewDocument } from "./util.js";
 import { fillI9 } from "./i9.js";
 
 // The packet's text fields that map to exactly one profile ("p") or employer
@@ -301,7 +301,7 @@ export async function fillPacket2026(templateBytes, p, emp, opts) {
   form.updateFieldAppearances();
   await overlaySignature(doc, emp.signature, EMPLOYER_SIGNATURE);
   await overlaySignature(doc, opts.attendantSignature, ATTENDANT_SIGNATURE);
-  return doc.save();
+  return saveAsNewDocument(doc);
 }
 
 // Fill per-digit boxes named "<prefix> 1".."<prefix> N".

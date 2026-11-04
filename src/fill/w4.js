@@ -6,7 +6,7 @@
 // dropped into public/forms/w4.pdf keeps working either way.
 
 import { PDFDocument, PDFName, PDFBool } from "pdf-lib";
-import { bySuffix, fmtDate, fmtSsn, overlaySignature } from "./util.js";
+import { bySuffix, fmtDate, fmtSsn, overlaySignature, saveAsNewDocument } from "./util.js";
 import { normalizeMoney } from "../schema.js";
 
 // Punctuation only ("$1,000" -> "1000"); the amount itself is never changed.
@@ -89,5 +89,5 @@ export async function fillW4(templateBytes, p, emp, opts) {
   // Step 5 employee signature line, only with a signature the attendant agreed
   // to here. The line sits above its label, left of the Date box at x 463.
   await overlaySignature(doc, opts.attendantSignature, [{ page: 0, x: 104, y: 92, w: 340, h: 16 }]);
-  return doc.save();
+  return saveAsNewDocument(doc);
 }

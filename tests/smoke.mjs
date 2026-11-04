@@ -155,6 +155,26 @@ const i9Bytes = await fillI9Standalone(readFileSync(new URL("../public/forms/i9.
 writeFileSync(new URL("./out/i9-filled.pdf", import.meta.url), i9Bytes);
 expect("standalone I-9 filled and saved", i9Bytes.length > 50000, String(i9Bytes.length));
 
+// Each filled form gets its own trailer /ID. PDF viewers (PDF.js, Folio) key
+// placed signatures and edits by it, so a template's ID carried into every
+// person's form made one person's signature reappear on the next one's W-4.
+{
+  const docId = async (bytes) =>
+    (await PDFDocument.load(bytes)).context.trailerInfo.ID?.asArray().map((s) => s.asString()).join("|") ?? "";
+  const forms = [
+    ["W-4", "w4.pdf", w4Bytes, () => fillW4(readFileSync(new URL("../public/forms/w4.pdf", import.meta.url)), profile, employer, opts)],
+    ["packet", "CO-CDASS-Attendant-Packet-2026.pdf", p26, () => fillPacket2026(packet2026Src, profile, employer, opts)],
+    ["I-9", "i9.pdf", i9Bytes, () => fillI9Standalone(readFileSync(new URL("../public/forms/i9.pdf", import.meta.url)), profile, employer, opts)],
+  ];
+  for (const [label, template, bytes, again] of forms) {
+    const tpl = await docId(readFileSync(new URL(`../public/forms/${template}`, import.meta.url)));
+    const a = await docId(bytes);
+    const b = await docId(await again());
+    const firstHalves = new Set([tpl, a, b].map((id) => id.split("|")[0]));
+    expect(`${label}: every fill has its own document ID, unrelated to the template's`, a && b && firstHalves.size === 3, `${tpl} / ${a} / ${b}`);
+  }
+}
+
 // I-9 Section 2 document logic: license + SSN card (List B/C) above, passport
 // (List A) here. The List A branch is what PPL sees for passport holders.
 {
