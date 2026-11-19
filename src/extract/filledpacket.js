@@ -11,7 +11,8 @@
 // What it will not import, on purpose: anything the packet phrases as a
 // first-person attestation. The tax-exemption statements ("I am not the spouse,
 // parent, or child of the employer"), the under-18 statements, the EVV live-in
-// attestation, and the I-9 citizenship attestation are the signer's word, not
+// attestation, the I-9 citizenship attestation, and the I-9 List C entry (the
+// employer's word that the Social Security card was examined) are the signer's word, not
 // data, and re-asserting them onto a new form because an old one said so is the
 // one thing this pattern must not do. Those stay for the human. Everything here
 // is identity, contact, address, payment, and rates: the parts that are pure
@@ -22,6 +23,8 @@
 import { PDFDocument } from "pdf-lib";
 import { PACKET2026_TEXT, PAGE2, RATE_TABLE, TEXT_ME_YES, TEXT_ME_NO } from "../fill/packet2026.js";
 import { normalizeMoney } from "../schema.js";
+import { isoDate } from "../fill/util.js";
+import { stateFromDmv } from "../fill/i9.js";
 
 const text = (form, name) => {
   try {
@@ -197,6 +200,27 @@ export async function readFilledPacket(bytes) {
   put(profile, "routing", joinDigits(form, "Routing number", 9));
   put(profile, "account", joinDigits(form, "Account number", 13));
   profile.paperPayStub = checked(form, "Send my pay stub in the mail");
+
+  // ---- I-9 Section 2: document details ----
+  // Read only rows that carry the exact title the filler writes, so a document
+  // written in by hand (a birth certificate, a state ID) never lands in the
+  // passport or license keys. List C is left out on purpose: listing the card
+  // says the employer examined it, which is an attestation (ssnCardPresented).
+  if (text(form, "Document Title 1") === "U.S. Passport") {
+    put(profile, "passportNumber", text(form, "Document Number 0 (if any)"));
+    put(profile, "passportExpiration", isoDate(text(form, "Expiration Date if any")));
+  }
+  if (text(form, "List B Document 1 Title") === "Driver's License") {
+    put(profile, "dlNumber", text(form, "List B Document Number 1"));
+    put(profile, "dlState", stateFromDmv(text(form, "List B Issuing Authority 1")));
+    put(profile, "dlExpiration", isoDate(text(form, "List B Expiration Date 1")));
+  }
+
+  // The employer's business lines live only on the I-9. When businessName was
+  // blank the filler wrote the employer's own name there, so that comes back as
+  // the business name: it prints the same either way.
+  put(employer, "businessName", text(form, "Employers Business or Org Name"));
+  put(employer, "businessAddress", text(form, "Employers Business or Org Address"));
 
   // ---- Rates ----
   // The rates page has three parallel rate tables and the rate sits in exactly one, so

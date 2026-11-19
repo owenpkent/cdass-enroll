@@ -51,10 +51,12 @@ Optional: a collapsed section at the top, **Start from a packet you already
 filled for this person**, takes a **previous packet** PDF (a re-hire, a
 correction, or a packet from your old computer). The app reads the values out of
 the PDF's own form fields, so nothing is guessed. It fills identity, contact,
-address, payment, and rates, plus any Member/employer details you have not set
-yet, and it never overwrites standing details you already entered. It does not
-import the tax, live-in, or work-authorization answers: those are attestations
-the signer makes, so set them yourself each time. Imported values flash yellow;
+address, payment, rates, and the I-9 passport or driver's license details, plus
+any Member/employer details you have not set yet (including the I-9 business
+name and address), and it never overwrites standing details you already
+entered. It does not import the tax, live-in, or work-authorization answers, or
+the "Social Security card was examined" box: those are attestations the signer
+makes, so set them yourself each time. Imported values flash yellow;
 check each one.
 
 It reads packets filled from either version of the enrollment form: the current

@@ -128,6 +128,7 @@ label.field input:disabled, label.field select:disabled { background: #eef1f4; c
 .status.ok { color: var(--good); }
 .status.err { color: var(--bad); }
 .status.busy { color: var(--warn); }
+.status.warn { color: var(--warn); }
 
 .note { font-size: 0.85rem; color: var(--muted); }
 /* Inline complaint under a money box; the box keeps whatever was typed. */

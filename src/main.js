@@ -13,9 +13,9 @@ import * as store from "./store.js";
 import * as vault from "./crypto/vault.js";
 import { readFilledPacket } from "./extract/filledpacket.js";
 import { fillPacket2026 } from "./fill/packet2026.js";
-import { fillI9Standalone } from "./fill/i9.js";
+import { fillI9Standalone, i9DocGap } from "./fill/i9.js";
 import { fillW4 } from "./fill/w4.js";
-import { todayIso } from "./fill/util.js";
+import { todayIso, fmtDate } from "./fill/util.js";
 import { signatureMaker } from "./sigpad.js";
 
 // This is a one-at-a-time tool: a single person's profile, plus the standing
@@ -514,7 +514,7 @@ function renderMain() {
       setImportStatus(
         "ok",
         `Previous packet: filled ${changed.size} field${changed.size === 1 ? "" : "s"}.${standing} ` +
-          "Tax, live-in, and work-authorization answers are not imported; set those yourself. Review everything below."
+          "Tax, live-in, and work-authorization answers and the Social Security card box are not imported; set those yourself. Review everything below."
       );
     } catch (e) {
       if (who !== state.person) return discardedImport();
@@ -721,9 +721,17 @@ function renderMain() {
         : state.attendantSignature
           ? " The attendant's signature was not placed: its box was not ticked."
           : "";
+      // PPL sends back packets with a mistyped date of birth or an empty I-9
+      // List C, so name both here. A warning, not a block: List C may be a
+      // document the app does not list, written in by hand.
+      const hasI9 = packetCb.checked || i9Cb.checked;
+      const checks = [];
+      if (hasI9 && profile.dob) checks.push(`Date of birth printed as ${fmtDate(profile.dob)}: check it against their ID.`);
+      const gap = hasI9 ? i9DocGap(profile) : "";
+      if (gap) checks.push(gap);
       setGenStatus(
-        "ok",
-        `Done. Files are in your Downloads folder. Review every page, then sign and date by hand wherever no signature was placed.${employerNote}${attendantNote}`
+        gap ? "warn" : "ok",
+        `Done. Files are in your Downloads folder. Review every page, then sign and date by hand wherever no signature was placed.${employerNote}${attendantNote}${checks.length ? " " + checks.join(" ") : ""}`
       );
       offerScrub();
     } catch (e) {

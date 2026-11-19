@@ -85,6 +85,20 @@ export function fillI9(form, p, emp, opts, sig) {
   setText(form, "Employers Business or Org Address", emp.businessAddress);
 }
 
+/**
+ * What fillI9 will leave blank in Section 2's document lists, as a warning for
+ * the person generating (or "" when nothing is missing). Mirrors the branches
+ * above, so keep the two in step. PPL returns a packet whose List C is empty.
+ */
+export function i9DocGap(p) {
+  if (p.passportNumber) return "";
+  if (!p.dlNumber)
+    return "I-9 Section 2 lists no document: add a U.S. passport, or a driver's license and Social Security card.";
+  if (!(p.ssn && p.ssnCardPresented))
+    return "I-9 Section 2 List C is blank: tick \"Social Security card was examined\" once you have seen the card, or write in the List C document they showed by hand.";
+  return "";
+}
+
 // "CO" -> "Colorado DMV", matching how the issuing authority is written by hand.
 const STATE_NAMES = {
   AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
@@ -114,4 +128,11 @@ function dmvName(state) {
   if (!(state ?? "").trim()) return "";
   const full = STATE_NAMES[(state ?? "").trim().toUpperCase()];
   return full ? `${full} DMV` : state;
+}
+
+/** Inverse of dmvName, for the importer: "Colorado DMV" -> "CO", anything else "". */
+export function stateFromDmv(issuer) {
+  const m = /^(.+) DMV$/.exec(String(issuer ?? "").trim());
+  if (!m) return "";
+  return Object.keys(STATE_NAMES).find((k) => STATE_NAMES[k] === m[1]) ?? "";
 }

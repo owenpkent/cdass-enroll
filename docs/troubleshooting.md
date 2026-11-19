@@ -124,8 +124,9 @@ flip side of local-only storage. Export a backup after entering real data.
 
 If there is no backup but you still have a packet you generated for that person,
 **Previous packet** in Step 1 reads most of it back: identity, contact, address,
-payment, and rates, plus any Member/employer details still blank. It does not
-recover the tax, live-in, or work-authorization answers, which are attestations
+payment, rates, and I-9 passport or license details, plus any Member/employer
+details still blank. It does not recover the tax, live-in, or work-authorization
+answers, or the "Social Security card was examined" box, which are attestations
 and are never imported, and it does not recover the signature, because it reads
 form fields and the signature is drawn onto the page as an image rather than
 stored in a field.

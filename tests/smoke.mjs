@@ -9,7 +9,7 @@ import { PDFDocument, PDFName } from "pdf-lib";
 // blankProfile() uses crypto.randomUUID; provide it on older Node globals.
 if (!globalThis.crypto) globalThis.crypto = { randomUUID };
 import { fillPacket2026 } from "../src/fill/packet2026.js";
-import { fillI9Standalone } from "../src/fill/i9.js";
+import { fillI9Standalone, i9DocGap } from "../src/fill/i9.js";
 import { fillW4 } from "../src/fill/w4.js";
 import { fmtDate } from "../src/fill/util.js";
 import { V3_ADDED_FIELDS } from "../src/fill/packet2026.js";
@@ -278,7 +278,18 @@ expect("standalone I-9 filled and saved", i9Bytes.length > 50000, String(i9Bytes
 
   // Attestations are the signer's word, not data. Importing them would re-assert
   // an old form's statement onto a new one without the human saying so.
-  const attestations = ["relationToEmployer", "fullTimeStudent", "primaryJob", "citizenship", "liveIn"];
+  expect(
+    "import: I-9 license and business lines come back",
+    back.profile.dlNumber === profile.dlNumber &&
+      back.profile.dlState === "CO" &&
+      back.profile.dlExpiration === profile.dlExpiration &&
+      back.employer.businessName === employer.businessName &&
+      back.employer.businessAddress === employer.businessAddress &&
+      !("passportNumber" in back.profile),
+    JSON.stringify({ dl: back.profile.dlState, exp: back.profile.dlExpiration, biz: back.employer.businessName })
+  );
+
+  const attestations = ["relationToEmployer", "fullTimeStudent", "primaryJob", "citizenship", "liveIn", "ssnCardPresented"];
   expect(
     "import: attestations are never imported",
     attestations.every((k) => !(k in back.profile)),
@@ -532,6 +543,15 @@ expect("no unresolved field names in any mapping", mappingWarnings.length === 0,
   // List C needs the explicit choice; issuer never falls back to the home state.
   const noCard = await read(await fillI9Standalone(readFileSync(new URL("../public/forms/i9.pdf", import.meta.url)), { ...profile, ssnCardPresented: false, dlState: "" }, employer, opts), ["List C Document Number 1", "List B Issuing Authority 1", "List B Document Number 1"]);
   expect("I-9: List C blank without ssnCardPresented; no home-state DL issuer", noCard["List C Document Number 1"] === "" && noCard["List B Issuing Authority 1"] === "" && noCard["List B Document Number 1"] === "123456789", JSON.stringify(noCard));
+  // The Generate warning must agree with what the filler leaves blank.
+  expect(
+    "I-9: i9DocGap warns on a blank List C, a missing document, and nothing else",
+    i9DocGap(profile) === "" &&
+      /List C is blank/.test(i9DocGap({ ...profile, ssnCardPresented: false })) &&
+      /List C is blank/.test(i9DocGap({ ...profile, ssn: "" })) &&
+      /lists no document/.test(i9DocGap({ ...profile, dlNumber: "", passportNumber: "" })) &&
+      i9DocGap({ ...profile, ssnCardPresented: false, passportNumber: "X1234567" }) === ""
+  );
 
   // EVV relationship follows the Member relationship.
   const evv = async (pr) => (await PDFDocument.load(await fillPacket2026(packet2026Src, { ...profile, liveIn: "fullTime", ...pr }, employer, opts))).getForm();
