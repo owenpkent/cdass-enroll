@@ -124,15 +124,26 @@ function aNumberDigits(a) {
   return String(a ?? "").replace(/\D/g, "");
 }
 
-function dmvName(state) {
-  if (!(state ?? "").trim()) return "";
-  const full = STATE_NAMES[(state ?? "").trim().toUpperCase()];
-  return full ? `${full} DMV` : state;
+/** "CO", "co" or "Colorado" -> "CO"; anything else "". License state is free text. */
+function stateCode(s) {
+  const v = String(s ?? "").trim();
+  if (STATE_NAMES[v.toUpperCase()]) return v.toUpperCase();
+  return Object.keys(STATE_NAMES).find((k) => STATE_NAMES[k].toLowerCase() === v.toLowerCase()) ?? "";
 }
 
-/** Inverse of dmvName, for the importer: "Colorado DMV" -> "CO", anything else "". */
+function dmvName(state) {
+  if (!(state ?? "").trim()) return "";
+  const code = stateCode(state);
+  return code ? `${STATE_NAMES[code]} DMV` : state;
+}
+
+/**
+ * Inverse of dmvName, for the importer: "Colorado DMV" (or a bare "Colorado")
+ * -> "CO". Any other issuer comes back as written, which is what dmvName wrote
+ * it from, so a regenerated I-9 prints the same issuing authority.
+ */
 export function stateFromDmv(issuer) {
-  const m = /^(.+) DMV$/.exec(String(issuer ?? "").trim());
-  if (!m) return "";
-  return Object.keys(STATE_NAMES).find((k) => STATE_NAMES[k] === m[1]) ?? "";
+  const v = String(issuer ?? "").trim();
+  const m = /^(.+) DMV$/.exec(v);
+  return (m && stateCode(m[1])) || stateCode(v) || v;
 }

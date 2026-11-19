@@ -124,3 +124,22 @@ test("a packet filled earlier reads back in after Start over", async ({ page }) 
   await expect(field(page, "relationship")).toHaveValue(PROFILE.relationship);
   await expect(field(page, "allowText")).toHaveValue(PROFILE.allowText);
 });
+
+test("Clear sensitive data also takes the echoed date of birth off the page", async ({ page }) => {
+  await openApp(page);
+  await enterYourDetails(page);
+  await enterAttendant(page);
+  await setDates(page);
+  await generate(page, 2);
+  const printed = PROFILE.dob.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$2/$3/$1");
+  await expect(page.getByText(`Date of birth printed as ${printed}`)).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear sensitive data" }).click();
+  await expect(page.getByText(/^Cleared \d+ sensitive field/)).toBeVisible();
+  const body = await page.locator("body").innerText();
+  expect(body).not.toContain(printed);
+  expect(body).not.toContain(PROFILE.dob);
+  await expect(page.getByText(/^Done\. Files are in your Downloads folder/)).toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("cdass.profile.v1") ?? "{}"));
+  expect(saved.dob ?? "").toBe("");
+});

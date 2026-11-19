@@ -289,6 +289,16 @@ expect("standalone I-9 filled and saved", i9Bytes.length > 50000, String(i9Bytes
     JSON.stringify({ dl: back.profile.dlState, exp: back.profile.dlExpiration, biz: back.employer.businessName })
   );
 
+  // License State is free text: a full name, or one dmvName does not know,
+  // must survive fill -> import -> fill with the same issuing authority.
+  for (const [typed, issuer, code] of [["Colorado", "Colorado DMV", "CO"], ["co", "Colorado DMV", "CO"], ["Ontario", "Ontario", "Ontario"]]) {
+    const first = await fillPacket2026(readFileSync(new URL("../public/forms/CO-CDASS-Attendant-Packet-2026.pdf", import.meta.url)), { ...profile, dlState: typed }, employer, opts);
+    const got = (await readFilledPacket(first)).profile.dlState;
+    const again = await fillPacket2026(readFileSync(new URL("../public/forms/CO-CDASS-Attendant-Packet-2026.pdf", import.meta.url)), { ...profile, dlState: got }, employer, opts);
+    const printed = (await PDFDocument.load(again)).getForm().getTextField("List B Issuing Authority 1").getText();
+    expect(`import: license state "${typed}" round-trips as ${issuer}`, got === code && printed === issuer, JSON.stringify({ got, printed }));
+  }
+
   const attestations = ["relationToEmployer", "fullTimeStudent", "primaryJob", "citizenship", "liveIn", "ssnCardPresented"];
   expect(
     "import: attestations are never imported",

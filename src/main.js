@@ -725,15 +725,13 @@ function renderMain() {
       // List C, so name both here. A warning, not a block: List C may be a
       // document the app does not list, written in by hand.
       const hasI9 = packetCb.checked || i9Cb.checked;
-      const checks = [];
-      if (hasI9 && profile.dob) checks.push(`Date of birth printed as ${fmtDate(profile.dob)}: check it against their ID.`);
       const gap = hasI9 ? i9DocGap(profile) : "";
-      if (gap) checks.push(gap);
-      setGenStatus(
-        gap ? "warn" : "ok",
-        `Done. Files are in your Downloads folder. Review every page, then sign and date by hand wherever no signature was placed.${employerNote}${attendantNote}${checks.length ? " " + checks.join(" ") : ""}`
-      );
-      offerScrub();
+      const done = `Done. Files are in your Downloads folder. Review every page, then sign and date by hand wherever no signature was placed.${employerNote}${attendantNote}${gap ? " " + gap : ""}`;
+      const dobNote = hasI9 && profile.dob ? ` Date of birth printed as ${fmtDate(profile.dob)}: check it against their ID.` : "";
+      setGenStatus(gap ? "warn" : "ok", done + dobNote);
+      // The echoed date of birth is a copy of a sensitive value, so clearing
+      // sensitive data must take it off the page too.
+      offerScrub(() => setGenStatus(gap ? "warn" : "ok", done));
     } catch (e) {
       console.error(e);
       setGenStatus("err", "Failed: " + e.message);
@@ -744,7 +742,7 @@ function renderMain() {
   }
 
   // After generating, offer to clear sensitive data right away.
-  function offerScrub() {
+  function offerScrub(onScrub) {
     afterGen.replaceChildren(
       h(
         "div",
@@ -767,6 +765,7 @@ function renderMain() {
                 const cleared = scrubSensitive(state.profile);
                 save();
                 refreshInputs(formArea, state.profile);
+                onScrub?.();
                 afterGen.replaceChildren(
                   h("p", { class: "status ok" }, `Cleared ${cleared.length} sensitive field${cleared.length === 1 ? "" : "s"}.`)
                 );

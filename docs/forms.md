@@ -176,7 +176,9 @@ Quirks of the original PDF (not bugs in this app):
 - **I-9 List C (Social Security card)** is listed only when the profile's
   "Social Security card was examined" box (`ssnCardPresented`, default off) is
   checked, alongside the driver's license. The license issuer comes from
-  `dlState` only and is blank when unknown. PPL returns a packet whose List C
+  `dlState` only and is blank when unknown. A two-letter code or a full state
+  name prints as `<State> DMV`; anything else prints as typed, and the importer
+  (`stateFromDmv`) maps each back so a regenerated I-9 prints the same issuer. PPL returns a packet whose List C
   is empty, so `i9DocGap` (beside the filler in `i9.js`) turns the Generate
   status into a warning when List C or the whole document list will be blank.
   Generate also echoes the printed date of birth to check against the ID, the
