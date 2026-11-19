@@ -123,6 +123,12 @@ At the bottom of the page:
   first: a rate that is not a plain dollars-and-cents amount (`33.517`) stops
   the packet with a message rather than printing. The app never rounds it for
   you, because that would change what someone gets paid.
+- When the packet or I-9 is generated, the status line also shows the date of
+  birth as printed, so you can check it against the attendant's ID (a mistyped
+  date is a common reason PPL sends paperwork back). It turns amber when I-9
+  Section 2 List C will be blank: tick **Social Security card was examined**
+  once you have seen the card, or write in the List C document they showed by
+  hand. **Clear sensitive data** takes the echoed date off the page too.
 
 Each PDF is an exact, editable copy of the official packet with the fields
 filled in, so you can still adjust anything in your PDF reader before
