@@ -7,6 +7,28 @@ below as 0.1.0, and work since then sits under Unreleased.
 
 ## [Unreleased]
 
+### 2026-11-19
+
+#### Added
+
+- **Generate checks the two things PPL most often sends back.** The status line
+  shows the date of birth as printed, to check against the ID, and turns into a
+  warning when I-9 Section 2 List C, or the whole document list, will be blank
+  (`i9DocGap`, beside the filler in `src/fill/i9.js`). It warns rather than
+  blocks, since a List C document the app does not list can be written in by
+  hand. **Clear sensitive data** removes the echoed date from the page.
+- **Previous-packet import reads back I-9 Section 2.** The passport or driver's
+  license details, and the employer's I-9 business name and address, now come
+  back. Citizenship and the "Social Security card was examined" box still do
+  not: both are attestations.
+
+#### Fixed
+
+- **A license state typed as a full name lost its issuer.** `Colorado` printed
+  as `Colorado` (not `Colorado DMV`) and did not survive import. A full name now
+  prints as `<State> DMV` like a code does, and import maps either back, keeping
+  any other issuer as written.
+
 ### 2026-11-03
 
 #### Fixed

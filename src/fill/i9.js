@@ -85,6 +85,20 @@ export function fillI9(form, p, emp, opts, sig) {
   setText(form, "Employers Business or Org Address", emp.businessAddress);
 }
 
+/**
+ * What fillI9 will leave blank in Section 2's document lists, as a warning for
+ * the person generating (or "" when nothing is missing). Mirrors the branches
+ * above, so keep the two in step. PPL returns a packet whose List C is empty.
+ */
+export function i9DocGap(p) {
+  if (p.passportNumber) return "";
+  if (!p.dlNumber)
+    return "I-9 Section 2 lists no document: add a U.S. passport, or a driver's license and Social Security card.";
+  if (!(p.ssn && p.ssnCardPresented))
+    return "I-9 Section 2 List C is blank: tick \"Social Security card was examined\" once you have seen the card, or write in the List C document they showed by hand.";
+  return "";
+}
+
 // "CO" -> "Colorado DMV", matching how the issuing authority is written by hand.
 const STATE_NAMES = {
   AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
@@ -110,8 +124,26 @@ function aNumberDigits(a) {
   return String(a ?? "").replace(/\D/g, "");
 }
 
+/** "CO", "co" or "Colorado" -> "CO"; anything else "". License state is free text. */
+function stateCode(s) {
+  const v = String(s ?? "").trim();
+  if (STATE_NAMES[v.toUpperCase()]) return v.toUpperCase();
+  return Object.keys(STATE_NAMES).find((k) => STATE_NAMES[k].toLowerCase() === v.toLowerCase()) ?? "";
+}
+
 function dmvName(state) {
   if (!(state ?? "").trim()) return "";
-  const full = STATE_NAMES[(state ?? "").trim().toUpperCase()];
-  return full ? `${full} DMV` : state;
+  const code = stateCode(state);
+  return code ? `${STATE_NAMES[code]} DMV` : state;
+}
+
+/**
+ * Inverse of dmvName, for the importer: "Colorado DMV" (or a bare "Colorado")
+ * -> "CO". Any other issuer comes back as written, which is what dmvName wrote
+ * it from, so a regenerated I-9 prints the same issuing authority.
+ */
+export function stateFromDmv(issuer) {
+  const v = String(issuer ?? "").trim();
+  const m = /^(.+) DMV$/.exec(v);
+  return (m && stateCode(m[1])) || stateCode(v) || v;
 }

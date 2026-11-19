@@ -13,9 +13,9 @@ import * as store from "./store.js";
 import * as vault from "./crypto/vault.js";
 import { readFilledPacket } from "./extract/filledpacket.js";
 import { fillPacket2026 } from "./fill/packet2026.js";
-import { fillI9Standalone } from "./fill/i9.js";
+import { fillI9Standalone, i9DocGap } from "./fill/i9.js";
 import { fillW4 } from "./fill/w4.js";
-import { todayIso } from "./fill/util.js";
+import { todayIso, fmtDate } from "./fill/util.js";
 import { signatureMaker } from "./sigpad.js";
 
 // This is a one-at-a-time tool: a single person's profile, plus the standing
@@ -514,7 +514,7 @@ function renderMain() {
       setImportStatus(
         "ok",
         `Previous packet: filled ${changed.size} field${changed.size === 1 ? "" : "s"}.${standing} ` +
-          "Tax, live-in, and work-authorization answers are not imported; set those yourself. Review everything below."
+          "Tax, live-in, and work-authorization answers and the Social Security card box are not imported; set those yourself. Review everything below."
       );
     } catch (e) {
       if (who !== state.person) return discardedImport();
@@ -721,11 +721,17 @@ function renderMain() {
         : state.attendantSignature
           ? " The attendant's signature was not placed: its box was not ticked."
           : "";
-      setGenStatus(
-        "ok",
-        `Done. Files are in your Downloads folder. Review every page, then sign and date by hand wherever no signature was placed.${employerNote}${attendantNote}`
-      );
-      offerScrub();
+      // PPL sends back packets with a mistyped date of birth or an empty I-9
+      // List C, so name both here. A warning, not a block: List C may be a
+      // document the app does not list, written in by hand.
+      const hasI9 = packetCb.checked || i9Cb.checked;
+      const gap = hasI9 ? i9DocGap(profile) : "";
+      const done = `Done. Files are in your Downloads folder. Review every page, then sign and date by hand wherever no signature was placed.${employerNote}${attendantNote}${gap ? " " + gap : ""}`;
+      const dobNote = hasI9 && profile.dob ? ` Date of birth printed as ${fmtDate(profile.dob)}: check it against their ID.` : "";
+      setGenStatus(gap ? "warn" : "ok", done + dobNote);
+      // The echoed date of birth is a copy of a sensitive value, so clearing
+      // sensitive data must take it off the page too.
+      offerScrub(() => setGenStatus(gap ? "warn" : "ok", done));
     } catch (e) {
       console.error(e);
       setGenStatus("err", "Failed: " + e.message);
@@ -736,7 +742,7 @@ function renderMain() {
   }
 
   // After generating, offer to clear sensitive data right away.
-  function offerScrub() {
+  function offerScrub(onScrub) {
     afterGen.replaceChildren(
       h(
         "div",
@@ -759,6 +765,7 @@ function renderMain() {
                 const cleared = scrubSensitive(state.profile);
                 save();
                 refreshInputs(formArea, state.profile);
+                onScrub?.();
                 afterGen.replaceChildren(
                   h("p", { class: "status ok" }, `Cleared ${cleared.length} sensitive field${cleared.length === 1 ? "" : "s"}.`)
                 );
