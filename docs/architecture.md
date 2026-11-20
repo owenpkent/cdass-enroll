@@ -152,7 +152,8 @@ run.py                   Launcher: install-if-needed, dev/test/build/serve
   details, but reuse of a signature is a claim about who signed. The attendant's
   signature is the stricter case: made with the attendant present, kept in
   memory only (never stored, dropped by Start over, new person and previous-packet
-  import), with its own tick that clears whenever a new signature is made.
+  import), and placed only once the attendant presses "Use this signature"
+  themselves; that press is their agreement, and Remove takes it back.
 - **A rate is never auto-corrected.** Money fields validate through
   `moneyError` and a bad one blocks Generate with the field named. Formatting is
   tidied (`$1,234.00` to `1234.00`); the amount never is. Rounding `33.517` to
@@ -177,16 +178,17 @@ run.py                   Launcher: install-if-needed, dev/test/build/serve
   ever see the fictional Jane Doe.
 - `tests/smoke.mjs` also checks each signature lands only on its signer's pages
   (image count per page against an unsigned fill).
-- Coverage (17 UI tests): no scan UI exists; type once, generate, and read the packet and W-4
+- Coverage (19 UI tests): no scan UI exists; type once, generate, and read the packet and W-4
   back with pdf-lib; a malformed rate blocks Generate; Your details persist
   across reload while the attendant does not; nothing is signed until a
-  signature is made and ticked; the typed attendant name follows Step 1; a typed
-  attendant signature is placed only after its tick (packet pages 8, 10, 11, 12,
-  20 and W-4 page 1); a drawn employer signature is saved across reload while its
+  signature is made; the typed attendant name follows Step 1; a typed attendant
+  signature is placed only once used, and Remove takes it off (packet pages 8,
+  10, 11, 12, 20 and W-4 page 1); a drawn employer signature is saved across reload while its
   tick is not; Start over drops the attendant signature; the previous-packet
   import round trip; importing a packet clears the previous person's attendant
-  signature and both ticks and offers the imported names to both signature
-  makers; only the active Type/Draw pane shows, and it is the one used; axe
+  signature and the employer tick and offers the imported names to both signature
+  makers; only the active Type/Draw pane shows, and it is the one used; Clear
+  sensitive data takes the echoed date of birth off the page; axe
   WCAG 2.2 AA on each view; keyboard reach of the import picker.
 - Every run writes an HTML report (`npx playwright show-report`); set
   `CDASS_UI_SHOTS=1` to keep a full-page screenshot of every test.

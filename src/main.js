@@ -570,8 +570,6 @@ function renderMain() {
   // a signature made for one packet cannot ride along on the next one's.
   const stampCb = h("input", { type: "checkbox", onchange: (e) => (opts.stampSignature = e.target.checked) });
   stampCb.checked = !!opts.stampSignature;
-  const attCb = h("input", { type: "checkbox", onchange: (e) => (opts.stampAttendant = e.target.checked) });
-  attCb.checked = !!opts.stampAttendant;
 
   const signatureArea = h("div");
   let attendantMaker = null;
@@ -581,7 +579,6 @@ function renderMain() {
   });
   function renderSignatures() {
     stampCb.checked = !!opts.stampSignature;
-    attCb.checked = !!opts.stampAttendant;
     signatureArea.replaceChildren(
       h("h3", {}, "Employer signature"),
       renderEmployerSignature(),
@@ -625,8 +622,9 @@ function renderMain() {
     );
   }
 
-  // The attendant signs for themselves: make this with them, and tick the box
-  // only with their agreement. It is held for this packet only.
+  // The attendant signs for themselves: they type or draw it and press "Use
+  // this signature", and that press is their agreement to sign this packet.
+  // Remove takes it back. It is held for this packet only, never saved.
   function renderAttendantSignature() {
     const name = attendantName();
     attendantMaker = null;
@@ -636,7 +634,7 @@ function renderMain() {
         who: "attendant signature",
         onUse: (png) => {
           state.attendantSignature = png;
-          opts.stampAttendant = false; // a new signature must be agreed to
+          opts.stampAttendant = true; // the attendant pressed Use: that is the agreement
           renderSignatures();
         },
       });
@@ -654,7 +652,7 @@ function renderMain() {
     return h(
       "div",
       { class: "card" },
-      h("label", { class: "check" }, attCb, `${name || "The attendant"} agrees to sign this packet with this signature`),
+      h("p", { class: "note", style: "margin-top:0" }, `${name || "The attendant"} signed this packet with this signature. It goes on the attendant lines; Remove takes it off.`),
       h("img", { class: "sigpreview", src: state.attendantSignature, alt: "Attendant signature" }),
       h(
         "div",
@@ -716,11 +714,7 @@ function renderMain() {
           ? ` The employer signature on file for ${emp.signatureFor || "an unrecorded name"} was stamped on the employer lines.`
           : " The employer signature was not stamped."
         : "";
-      const attendantNote = attendantSignature
-        ? " The attendant's signature was placed on the attendant lines."
-        : state.attendantSignature
-          ? " The attendant's signature was not placed: its box was not ticked."
-          : "";
+      const attendantNote = attendantSignature ? " The attendant's signature was placed on the attendant lines." : "";
       // PPL sends back packets with a mistyped date of birth or an empty I-9
       // List C, so name both here. A warning, not a block: List C may be a
       // document the app does not list, written in by hand.
@@ -746,7 +740,7 @@ function renderMain() {
     afterGen.replaceChildren(
       h(
         "div",
-        { class: "card", style: "background:#fff8e6; border-color:#e3c66b" },
+        { class: "card warncard" },
         h(
           "p",
           { style: "margin-top:0" },
@@ -840,7 +834,7 @@ function renderMain() {
       h(
         "p",
         { class: "note" },
-        "A signature is placed only on its own signer's lines and only when its box above is ticked. Both ticks clear every time the app restarts and for every new person, so a signature is never applied unnoticed. The attendant's signature is never saved. Every other party (the Member, PPL, HCPF, a preparer) signs by hand. The output is an exact, editable copy of the packet, so you can adjust any field in your PDF reader before printing. The packet's rehire page (Supplement B) shares a field with I-9 List A in the original PDF, so if a passport was used, ignore the mirrored title on that page."
+        "A signature is placed only on its own signer's lines: the employer's only when its box above is ticked, the attendant's once they press Use this signature. Both clear every time the app restarts and for every new person, so a signature is never applied unnoticed. The attendant's signature is never saved. Every other party (the Member, PPL, HCPF, a preparer) signs by hand. The output is an exact, editable copy of the packet, so you can adjust any field in your PDF reader before printing. The packet's rehire page (Supplement B) shares a field with I-9 List A in the original PDF, so if a passport was used, ignore the mirrored title on that page."
       )
     ),
     h(

@@ -1,4 +1,5 @@
-// Signatures made in the page: typed or drawn, each behind its own consent tick.
+// Signatures made in the page: typed or drawn. The employer's stamp sits behind
+// its own consent tick; the attendant's press of "Use this signature" is theirs.
 import { PDFName } from "pdf-lib";
 import { test, expect, field, openApp, enterYourDetails, enterAttendant, generate } from "./support.mjs";
 
@@ -14,14 +15,13 @@ const imageCounts = (doc) => doc.getPages().map((pg) => pg.node.Resources()?.loo
 
 const attendant = (page) => page.locator("h3", { hasText: "Attendant signature" }).locator("xpath=following-sibling::*[1]");
 const employerSig = (page) => page.locator("h3", { hasText: "Employer signature" }).locator("xpath=following-sibling::*[1]");
-const attendantTick = (page) => page.getByLabel("Jane Doe agrees to sign this packet with this signature");
 const employerTick = (page) => page.getByLabel("Stamp this signature on the employer signature lines");
 
-test("nothing is signed until a signature is made and ticked", async ({ page }) => {
+test("nothing is signed until a signature is made", async ({ page }) => {
   await openApp(page);
   await expect(page.getByText(/No employer signature is on file/)).toBeVisible();
   await expect(employerTick(page)).toHaveCount(0);
-  await expect(page.getByText(/agrees to sign this packet/)).toHaveCount(0);
+  await expect(page.getByText(/signed this packet with this signature/)).toHaveCount(0);
 });
 
 test("the typed attendant signature follows the name typed in Step 1", async ({ page }) => {
@@ -31,7 +31,7 @@ test("the typed attendant signature follows the name typed in Step 1", async ({ 
   await expect(attendant(page).getByLabel("Type the attendant signature")).toHaveValue("Jane Doe");
 });
 
-test("a typed attendant signature lands on the attendant lines only after the tick", async ({ page }) => {
+test("a typed attendant signature lands on the attendant lines once used, and Remove takes it off", async ({ page }) => {
   await openApp(page);
   await enterYourDetails(page);
   await enterAttendant(page);
@@ -39,19 +39,23 @@ test("a typed attendant signature lands on the attendant lines only after the ti
   const base = imageCounts(unsigned[PACKET].doc);
   const w4Base = imageCounts(unsigned[W4].doc);
 
+  // Typed into the maker but not used: nothing is placed.
+  await expect(attendant(page).getByLabel("Type the attendant signature")).toHaveValue("Jane Doe");
+  const unused = await generate(page, 2);
+  expect(pagesWithNewImages(base, unused[PACKET].doc)).toEqual([]);
+
+  // Pressing Use is the attendant's agreement: it is placed with no further tick.
   await attendant(page).getByRole("button", { name: "Use this signature" }).click();
   await expect(page.getByRole("img", { name: "Attendant signature", exact: true })).toBeVisible();
-  await expect(attendantTick(page)).not.toBeChecked();
-
-  // Made but not agreed to: nothing is placed.
-  const notTicked = await generate(page, 2);
-  expect(pagesWithNewImages(base, notTicked[PACKET].doc)).toEqual([]);
-  await expect(page.getByText(/attendant's signature was not placed/)).toBeVisible();
-
-  await attendantTick(page).check();
+  await expect(page.getByText("Jane Doe signed this packet with this signature", { exact: false })).toBeVisible();
   const signed = await generate(page, 2);
   expect(pagesWithNewImages(base, signed[PACKET].doc)).toEqual([8, 10, 11, 12, 20]);
   expect(pagesWithNewImages(w4Base, signed[W4].doc)).toEqual([1]);
+  await expect(page.getByText(/attendant's signature was placed/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Remove" }).click();
+  const removed = await generate(page, 2);
+  expect(pagesWithNewImages(base, removed[PACKET].doc)).toEqual([]);
 });
 
 test("a drawn employer signature is saved for next time, but its tick is not", async ({ page }) => {
@@ -84,11 +88,10 @@ test("Start over drops the attendant signature", async ({ page }) => {
   await openApp(page);
   await enterAttendant(page);
   await attendant(page).getByRole("button", { name: "Use this signature" }).click();
-  await attendantTick(page).check();
 
   await page.getByRole("button", { name: "Start over (new person)" }).click();
   await expect(page.getByRole("img", { name: "Attendant signature", exact: true })).toHaveCount(0);
-  await expect(page.getByText(/agrees to sign this packet/)).toHaveCount(0);
+  await expect(page.getByText(/signed this packet with this signature/)).toHaveCount(0);
 });
 
 // A fixture packet filled by the real filler, for import tests.
@@ -114,13 +117,12 @@ test("importing a packet replaces the previous person's signature and name", asy
   await field(page, "first").fill("Alice");
   await field(page, "last").fill("Smith");
   await attendant(page).getByRole("button", { name: "Use this signature" }).click();
-  await page.getByLabel("Alice Smith agrees to sign this packet with this signature").check();
 
   await importPacket(page, path);
   await expect(field(page, "first")).toHaveValue("Jane");
   // Alice's signature and her agreement are gone; the maker offers Jane's name.
   await expect(page.getByRole("img", { name: "Attendant signature", exact: true })).toHaveCount(0);
-  await expect(page.getByText(/agrees to sign this packet/)).toHaveCount(0);
+  await expect(page.getByText(/signed this packet with this signature/)).toHaveCount(0);
   await expect(attendant(page).getByLabel("Type the attendant signature")).toHaveValue("Jane Doe");
   await expect(attendant(page).getByRole("button", { name: "Use this signature" })).toBeEnabled();
 });

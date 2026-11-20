@@ -56,8 +56,9 @@ already has; nothing is downloaded. The Member, the FMS vendor, HCPF and any
 preparer always sign by hand. Signatures are per-packet consent: the saved
 employer signature is stamped only when you tick the box in Step 2 confirming it
 belongs on *this* packet, and that tick clears on every restart and every new
-person. The attendant's signature is never saved: it lives in memory, needs its
-own "agrees to sign" tick, and is dropped by Start over. The app also deliberately leaves a checkbox
+person. The attendant's signature is never saved: it lives in memory, is placed
+once the attendant presses "Use this signature" (Remove takes it back), and is
+dropped by Start over. The app also deliberately leaves a checkbox
 blank wherever an attestation is ambiguous (details in
 [docs/forms.md](docs/forms.md)).
 
