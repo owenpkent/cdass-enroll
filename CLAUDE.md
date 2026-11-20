@@ -62,9 +62,11 @@ CSP in index.html enforces this and should stay.
   Step 5). The Member, FMS vendor, HCPF and any preparer sign by hand
 - Consent is per signature and per packet, and lives in the UI, not the
   fillers: `genOptions.stampSignature` and `genOptions.stampAttendant` (memory
-  only, false on every launch, every new person, and every new signature)
-  decide. `generate()` blanks `emp.signature` and passes
-  `opts.attendantSignature` as "" when its box is off. Fillers stay dumb and
+  only, false on every launch and every new person) decide. The employer's is
+  its own tick; the attendant's is set when the attendant presses "Use this
+  signature" (that press is their agreement) and cleared by Remove.
+  `generate()` blanks `emp.signature` and passes `opts.attendantSignature` as
+  "" when either is off. Fillers stay dumb and
   draw whatever they are given; keep the decision in `main.js`
 - Rates print onto a form the attendant signs, so money fields are validated
   (`moneyError` in schema.js) and a bad one blocks Generate. Never round or

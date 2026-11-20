@@ -1,16 +1,25 @@
+/* Dark theme following okstudio-style (github.com/owenpkent/okstudio-style,
+   commit 6fc4df7, web/tokens.css dark values). Values are copied here, with the
+   app's own variable names kept. No web fonts: the CSP allows none, so local
+   system font stacks only. */
 :root {
-  --bg: #f6f7f9;
-  --card: #ffffff;
-  --ink: #1c2430;
-  --muted: #5b6878;
-  --line: #dde3ea;
-  --accent: #1f6feb;
-  --accent-ink: #ffffff;
-  /* --accent as text on --bg is 4.3:1, under WCAG AA; this is 6:1. */
-  --accent-text: #0a58ca;
-  --good: #1a7f37;
-  --warn: #9a6700;
-  --bad: #cf222e;
+  color-scheme: dark;
+  --bg: #0c1118;
+  --card: #131c29;
+  --ink: #e2ecf5;
+  --muted: #7f93a8;
+  --line: #2c3b50;
+  /* Borders of inputs and checkboxes need 3:1 against their background. */
+  --line-strong: #5d7087;
+  --field: #0c1118;
+  --accent: #35c4d7;
+  --accent-ink: #0c1118;
+  --accent-text: #35c4d7;
+  --good: #3fbf84;
+  --warn: #ff9f43;
+  --bad: #ff6f85;
+  /* Signature pad and previews hold dark ink, so they stay on white. */
+  --paper: #ffffff;
   font-size: 16px;
 }
 
@@ -20,7 +29,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   line-height: 1.45;
 }
 
@@ -67,43 +76,45 @@ label.field input, label.field select {
   font: inherit;
   color: var(--ink);
   padding: 0.45rem 0.55rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
-  background: #fff;
+  background: var(--field);
 }
 label.field input:focus, label.field select:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 label.check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; padding: 0.3rem 0; }
 
-input.flash { background: #fff8d6; transition: background 1.5s; }
+input.flash { background: #1d4450; transition: background 1.5s; }
 
 button.btn {
   font: inherit;
   font-weight: 600;
-  border: 1px solid var(--line);
-  background: #fff;
+  border: 1px solid var(--line-strong);
+  background: var(--card);
   color: var(--ink);
   border-radius: 8px;
   padding: 0.5rem 1rem;
   cursor: pointer;
 }
 button.btn:hover { border-color: var(--accent); color: var(--accent); }
+button.btn:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 button.btn.primary:hover { filter: brightness(1.1); color: var(--accent-ink); }
 button.btn.danger { color: var(--bad); }
 button.btn.danger:hover { border-color: var(--bad); }
 .btnrow { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
 
-label.field input:disabled, label.field select:disabled { background: #eef1f4; color: var(--muted); cursor: not-allowed; }
+label.field input:disabled, label.field select:disabled { background: #1a2433; color: #8da1b6; cursor: not-allowed; }
 
 .sigfield { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
-.sigpreview { max-width: 320px; max-height: 90px; border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 4px; }
+.sigpreview { max-width: 320px; max-height: 90px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); padding: 4px; }
 .sigmaker { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.4rem 0 0.8rem; }
 .sigmaker [aria-pressed="true"] { border-color: var(--accent-text); color: var(--accent-text); }
 .sigpane { display: flex; flex-direction: column; gap: 0.4rem; }
 /* display: flex above would otherwise override the hidden attribute, leaving the
    inactive pane on screen while "Use this signature" reads the other one. */
 .sigpane[hidden] { display: none; }
-.sigcanvas { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.sigcanvas { max-width: 100%; height: auto; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); }
 .sigpad { cursor: crosshair; touch-action: none; }
 
 .importrow { margin-top: 0.4rem; }
@@ -112,16 +123,16 @@ label.field input:disabled, label.field select:disabled { background: #eef1f4; c
 .filebtn {
   display: inline-block;
   width: min(260px, 100%);
-  border: 2px dashed var(--line);
+  border: 2px dashed var(--line-strong);
   border-radius: 10px;
   padding: 0.9rem;
   text-align: center;
   cursor: pointer;
-  background: #fbfcfe;
+  background: #0f1722;
 }
 .filebtn:hover, .filebtn:focus-within { border-color: var(--accent); }
 .filebtn .big { font-size: 1.4rem; display: block; }
-.filebtn small { color: var(--muted); display: block; margin-top: 0.2rem; }
+.filebtn small { color: #8da1b6; display: block; margin-top: 0.2rem; }
 .filebtn input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 
 .status { margin-top: 0.6rem; font-size: 0.9rem; min-height: 1.3em; }
@@ -134,5 +145,6 @@ label.field input:disabled, label.field select:disabled { background: #eef1f4; c
 /* Inline complaint under a money box; the box keeps whatever was typed. */
 .fielderr { display: none; margin-top: 0.25rem; font-size: 0.8rem; color: var(--bad); }
 label.field:has(.fielderr:not([style*="none"])) input { border-color: var(--bad); }
+.card.warncard { background: #2a2210; border-color: var(--warn); }
 .privacy p { max-width: 70ch; }
 hr.soft { border: none; border-top: 1px solid var(--line); margin: 1rem 0; }

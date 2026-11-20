@@ -41,11 +41,10 @@ filled by design.
 
 **The attendant signature is missing from the packet**
 
-It is placed only when the attendant signature was made in Step 2 and its
-**agrees to sign this packet** tick is set; making a new signature clears the
-tick. It is never saved, so a reload, **Start over**, a new person or a
-previous-packet import drops it. The status line after generating says when a
-made signature was left off for want of the tick. The EVV caregiver lines stay
+It is placed only once the attendant has pressed **Use this signature** in
+Step 2; typing or drawing alone does not place it. It is never saved, so a
+reload, **Start over**, a new person or a previous-packet import drops it. The
+status line after generating says when the attendant's signature was placed. The EVV caregiver lines stay
 blank by design.
 
 **A typed signature looks like plain text**

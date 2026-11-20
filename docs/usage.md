@@ -106,11 +106,12 @@ At the bottom of the page:
   employer lines come out blank for hand signing.
 - **Attendant signature** (optional): do this only with the attendant present.
   They type their name (it starts from the name entered in Step 1; edit it if
-  they sign differently) or draw it on the pad, then tick
-  **<Name> agrees to sign this packet with this signature**. This one is never
-  saved: it lasts only until you close or reload the app, **Start over**, begin
-  a new person, or import a previous packet, and making a new signature clears
-  the tick. Untick or leave it out and the attendant lines stay blank.
+  they sign differently) or draw it on the pad, then press **Use this
+  signature** themselves: that press is their agreement to sign this packet,
+  and the signature goes on the attendant lines. **Remove** takes it off. It is
+  never saved: it lasts only until you close or reload the app, **Start over**,
+  begin a new person, or import a previous packet. Leave it out and the
+  attendant lines stay blank.
 - Signatures land on the signer's own lines only: the employer on packet pages
   8, 11 and 12 and I-9 Section 2; the attendant on pages 8, 10 (direct deposit),
   11 and 12, I-9 Section 1 and the W-4 Step 5 line. The EVV caregiver lines are

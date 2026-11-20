@@ -9,6 +9,17 @@ below as 0.1.0, and work since then sits under Unreleased.
 
 ### 2026-11-19
 
+#### Changed
+
+- **Dark theme.** The app now uses okstudio-style's dark navy and cyan palette
+  (values vendored into `src/style.css` from commit 6fc4df7, no web fonts) with
+  `color-scheme: dark`. The signature pad and previews stay on white so the ink
+  reads as it will print.
+- **The attendant signature has no separate tick.** The attendant pressing
+  **Use this signature** is their agreement to sign the packet; **Remove** takes
+  it off. It is still memory only and dropped for a new person. The employer's
+  saved signature keeps its own per-packet stamp tick.
+
 #### Added
 
 - **Generate checks the two things PPL most often sends back.** The status line
